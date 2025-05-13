@@ -47,42 +47,56 @@ int protocol_create_raw_socket(char* interface_name) {
 //
 
 // verifica a soma de todos os bytes do buffer, fora o byte destinado a checksum
-uchar local_checksum(uchar buffer[131]){
+uchar local_checksum(uchar *buffer, uchar size){
 	uchar sum = 0;
 	sum += buffer[0] + buffer[1] + buffer[2];
-	for (int i=4; i<131; i++) sum += buffer[i];
+	for (int i=4; i<size; i++) sum += buffer[i];
 
 	return sum;
 }
 
 // retorna 1 caso tenha sucesso
 // retorna 0 caso parametros estejam fora dos limites
-int local_build_message(uchar buffer[131], uchar size, uchar seq, uchar type, uchar data[127]){
-	// verifica se parametros estão dentro dos limites
-	if ((seq > 31) || (size > 127) || (type > 15)) return 0;
-
-	// inicializa o buffer em 0 para não haver problemas
-	for (int i=0; i<131; i++) buffer[i] = 0x00;
-
+void local_build_package(uchar *buffer, uchar size, uchar seq, uchar type, uchar *data){
 	// monta a mensagem
-	buffer[0] = INIT_SEQUENCE;			   // marcador de inicio
+	buffer[0] = INIT_SEQUENCE;				// marcador de inicio
 	buffer[1] = (size << 1) | (seq & 0x01);	
 	buffer[2] = (type << 4) | (seq >> 1);
-	memcpy(&buffer[4], data, 127);			// copia os dados para o final do buffer
-	buffer[3] = local_checksum(buffer);
-
-	return 1;
+	memcpy(&buffer[4], data, size);			// copia os dados para o final do buffer
+	buffer[3] = local_checksum(buffer, size);
 }
 
 // retorna 1 com sucesso
 // retorna 0 caso contrario
-int protocol_send_message(int socket, uchar size, uchar seq, uchar type, uchar data[127]){
-	uchar buffer[131], aux[262];
-	if(!local_build_message(buffer, size, seq, type, data)) return 0;
+int protocol_send_package(int socket, uchar size, uchar seq, uchar type, uchar *data){
+	uchar *buffer;
+	uchar buffer_size = 4 + size;		
+	
+	// verifica se parametros estão dentro dos limites
+	if ((seq > 31) || (size > 127) || (type > 15)) return 0;
+
+	// conta quantos bytes 0x88 e 0x81 tem na mensagem
+	// só iram ocorrer esses bytes no campo data
+	for (int i=0; i<size; i++)
+		if ((data[i] == 0x81) || (data[i] == 0x88)) 
+			buffer_size++;
+
+	// aloca o pacote com base no seu tamanho total
+	// pacotes precisam ter no minimo 14 bytes
+	if (buffer_size < 14){
+		buffer_size = 14;
+		buffer = malloc(14);
+		for (int i=0; i<14; i++) buffer[i] = 0x00;
+	} else buffer = malloc(buffer_size);
+
+	// constroi o pacote
+	local_build_package(buffer, size, seq, type, data);
+	
+	uchar *aux = malloc(buffer_size);
 
 	// adiciona bytes 0xff depois de 0x88 e 0x81 e envia
 	int j=0;
-	for (int i=0; i<131; i++){
+	for (int i=0; i<(4+size); i++){
 		aux[j] = buffer[i];
 		if((buffer[i] == 0x88) || (buffer[i] == 0x81)){
 			j++;
@@ -91,7 +105,12 @@ int protocol_send_message(int socket, uchar size, uchar seq, uchar type, uchar d
 		j++;
 	}
 
-	if(send(socket, aux, 262, 0) == -1) return 0;
+	int status = send(socket, aux, buffer_size, 0); 
+
+	free(buffer);
+	free(aux);
+
+	if (status == -1) return 0;
 	return 1;
 }
 
@@ -99,17 +118,17 @@ int protocol_send_message(int socket, uchar size, uchar seq, uchar type, uchar d
 //======================================================================
 //
 
-void local_deconstruct_message(uchar buffer[131], uchar *size, uchar *seq, uchar *type, uchar data[127]){
+void local_deconstruct_package(uchar buffer[131], uchar *size, uchar *seq, uchar *type, uchar data[127]){
 	// desmonta a mensagem
 	*size  = buffer[1] >> 1;
-   *seq  = ((buffer[2] & 0x0F) << 1) | (buffer[1] & 0x01);
-   *type = buffer[2] >> 4;
-	memcpy(data, &buffer[4], 127);			// copia a area de dados do buffer para dados
+   	*seq  = ((buffer[2] & 0x0F) << 1) | (buffer[1] & 0x01);
+   	*type = buffer[2] >> 4;
+	memcpy(data, &buffer[4], *size);			// copia a area de dados do buffer para dados
 }
 
 // retorna 1 com sucesso
 // retorna 0 caso contrario
-int protocol_recieve_message(int socket, uchar buffer[131], uchar *size, uchar *seq, uchar *type, uchar data[127]){
+int protocol_recieve_package(int socket, uchar buffer[131], uchar *size, uchar *seq, uchar *type, uchar data[127]){
 	uchar aux[262];
 
 	// recebe mensagem em aux
@@ -123,10 +142,10 @@ int protocol_recieve_message(int socket, uchar buffer[131], uchar *size, uchar *
 		j++;
 	}
 
-	local_deconstruct_message(buffer, size, seq, type, data);
+	local_deconstruct_package(buffer, size, seq, type, data);
 
 	// verifica checksum
-	if (buffer[3] != local_checksum(buffer)) return 0;
+	if (buffer[3] != local_checksum(buffer, *size)) return 0;
 
 	return 1;
 }
