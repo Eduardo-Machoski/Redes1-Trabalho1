@@ -13,6 +13,9 @@
 // variavel global de controle de timeout
 long long timeoutMillis = 1000;
 
+// buffer global para recebimento de pacotes
+uchar recieve_buffer[131];
+
 int protocol_create_raw_socket(char* interface_name) {
     // Cria arquivo para o socket sem qualquer protocolo
     int new_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
@@ -146,6 +149,8 @@ int protocol_recieve_package(int socket, package_t *package){
 
 	// verifica se tem marcador de inicio
 	if (aux[0] != INIT_SEQUENCE) return 0;
+
+	package->buffer = recieve_buffer;
 
 	// remove os bytes 0xff depois de 0x88 e 0x81 e guarda no buffer
 	int j = 0;
