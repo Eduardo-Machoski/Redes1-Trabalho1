@@ -28,6 +28,17 @@
 	#define INIT_SEQUENCE  0b01111110
 	#define PATH_INTERFACE "enp43s0"
 
+	
+	//================================STRUCT DE PACOTE========================================
+
+	typedef struct package_t{
+		uchar buffer[131];
+		uchar size;
+		uchar seq;
+		uchar type;
+		uchar data[127];
+	} package_t;
+
 	//==============================FUNÇÕES DO PROTOCOLO======================================
 
 	int protocol_create_raw_socket(char* interface_name);
