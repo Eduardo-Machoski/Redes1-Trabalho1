@@ -6,9 +6,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "connection_protocol.h"
  
+// variavel global de controle de timeout
+long long timeoutMillis = 1000;
+
 int protocol_create_raw_socket(char* interface_name) {
     // Cria arquivo para o socket sem qualquer protocolo
     int new_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
@@ -118,6 +122,13 @@ int protocol_send_package(int socket, uchar size, uchar seq, uchar type, uchar *
 //======================================================================
 //
 
+// usando long long pra (tentar) sobreviver ao ano 2038
+long long timestamp() {
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    return tp.tv_sec*1000 + tp.tv_usec/1000;
+}
+
 void local_deconstruct_package(uchar buffer[131], uchar *size, uchar *seq, uchar *type, uchar data[127]){
 	// desmonta a mensagem
 	*size  = buffer[1] >> 1;
@@ -129,24 +140,36 @@ void local_deconstruct_package(uchar buffer[131], uchar *size, uchar *seq, uchar
 // retorna 1 com sucesso
 // retorna 0 caso contrario
 int protocol_recieve_package(int socket, uchar buffer[131], uchar *size, uchar *seq, uchar *type, uchar data[127]){
+	// seta timeout
+	long long comeco = timestamp();
+	struct timeval timeout = { .tv_sec = timeoutMillis/1000, .tv_usec = (timeoutMillis%1000) * 1000 };
+    setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
+    int bytes_lidos;
 	uchar aux[262];
 
-	// recebe mensagem em aux
-	if (recv(socket, aux, 262, 0) == -1) return 0;
+	do{	
+		// recebe mensagem em aux
+		recv(socket, aux, 262, 0);
+		
+		// remove os bytes 0xff depois de 0x88 e 0x81 e guarda no buffer
+		int j = 0;
+		for (int i=0; i<131; i++){
+			buffer[i] = aux[j];
+			if (((aux[j] == 0x88) || (aux[j] == 0x81)) && (aux[j+1] == 0xff)) j++;
+			j++;
+		}
+
+		local_deconstruct_package(buffer, size, seq, type, data);
+
+		// verifica checksum e INIT_SEQUENCE
+		if ((buffer[3] == local_checksum(buffer, *size)) && (buffer[0] == INIT_SEQUENCE)){
+			timeoutMillis = 1000;		//volta o timeout a 1 segundo	
+			return 1;
+		}
+	}while(timestamp() - comeco <= timeoutMillis);
 	
-	// remove os bytes 0xff depois de 0x88 e 0x81 e guarda no buffer
-	int j = 0;
-	for (int i=0; i<131; i++){
-		buffer[i] = aux[j];
-		if (((aux[j] == 0x88) || (aux[j] == 0x81)) && (aux[j+1] == 0xff)) j++;
-		j++;
-	}
-
-	local_deconstruct_package(buffer, size, seq, type, data);
-
-	// verifica checksum
-	if (buffer[3] != local_checksum(buffer, *size)) return 0;
-
-	return 1;
+	// recuo exponencial
+	timeoutMillis *= 2;
+	return 0;
 }
 
