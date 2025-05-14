@@ -50,22 +50,20 @@ int protocol_create_raw_socket(char* interface_name) {
 //======================================================================
 //
 
-// verifica a soma de todos os bytes do buffer, fora o byte destinado a checksum
+// retorna a soma dos bytes dos campos de sequencia, tipo, tamanho e dados
 uchar local_checksum(uchar *buffer, uchar size){
 	uchar sum = 0;
-	sum += buffer[0] + buffer[1] + buffer[2];
+	sum += buffer[1] + buffer[2];
 	for (int i=4; i<size; i++) sum += buffer[i];
 
 	return sum;
 }
 
-// retorna 1 caso tenha sucesso
-// retorna 0 caso parametros estejam fora dos limites
 void local_build_package(uchar *buffer, uchar size, uchar seq, uchar type, uchar *data){
 	// monta a mensagem
 	buffer[0] = INIT_SEQUENCE;				// marcador de inicio
-	buffer[1] = (size << 1) | (seq & 0x01);	
-	buffer[2] = (type << 4) | (seq >> 1);
+	buffer[1] = (size << 1) | (seq >> 4);	
+	buffer[2] = (seq << 4) | type;
 	memcpy(&buffer[4], data, size);			// copia os dados para o final do buffer
 	buffer[3] = local_checksum(buffer, size);
 }
@@ -92,11 +90,13 @@ int protocol_send_package(int socket, uchar size, uchar seq, uchar type, uchar *
 		buffer = malloc(14);
 		for (int i=0; i<14; i++) buffer[i] = 0x00;
 	} else buffer = malloc(buffer_size);
+	if (!buffer) exit(1);
 
 	// constroi o pacote
 	local_build_package(buffer, size, seq, type, data);
 	
 	uchar *aux = malloc(buffer_size);
+	if (!aux) exit(1);
 
 	// adiciona bytes 0xff depois de 0x88 e 0x81 e envia
 	int j=0;
@@ -132,19 +132,18 @@ long long timestamp() {
 void local_deconstruct_package(uchar buffer[131], uchar *size, uchar *seq, uchar *type, uchar data[127]){
 	// desmonta a mensagem
 	*size  = buffer[1] >> 1;
-   	*seq  = ((buffer[2] & 0x0F) << 1) | (buffer[1] & 0x01);
-   	*type = buffer[2] >> 4;
+   	*seq  = ((buffer[1] & 0b1) << 4) | (buffer[2] >> 4);
+   	*type = buffer[2] & 0b1111;
 	memcpy(data, &buffer[4], *size);			// copia a area de dados do buffer para dados
 }
 
-// retorna 1 com sucesso
-// retorna 0 caso contrario
+// retorna 1 caso receba mensagem valida
+// retorna 0 em caso de timeout
 int protocol_recieve_package(int socket, uchar buffer[131], uchar *size, uchar *seq, uchar *type, uchar data[127]){
 	// seta timeout
 	long long comeco = timestamp();
 	struct timeval timeout = { .tv_sec = timeoutMillis/1000, .tv_usec = (timeoutMillis%1000) * 1000 };
     setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
-    int bytes_lidos;
 	uchar aux[262];
 
 	do{	
