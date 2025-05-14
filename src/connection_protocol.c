@@ -61,11 +61,11 @@ uchar local_checksum(package_t package){
 
 // monta a mensagem
 void local_build_package(package_t *package){
-	package.buffer[0] = INIT_SEQUENCE;				// marcador de inicio
-	package.buffer[1] = (package.size << 1) | (package.seq >> 4);	
-	package.buffer[2] = (package.seq << 4) | package.type;
-	memcpy(&(package.buffer[4]), package.data, package.size);			// copia os dados para o final do buffer
-	package.buffer[3] = local_checksum(package);
+	package->buffer[0] = INIT_SEQUENCE;				// marcador de inicio
+	package->buffer[1] = (package->size << 1) | (package->seq >> 4);	
+	package->buffer[2] = (package->seq << 4) | package->type;
+	memcpy(&(package->buffer[4]), package->data, package->size);			// copia os dados para o final do buffer
+	package->buffer[3] = local_checksum(*package);
 }
 
 // retorna 1 com sucesso
@@ -110,7 +110,7 @@ int protocol_send_package(int socket, package_t package){
 
 	int status = send(socket, aux, buffer_size, 0); 
 
-	free(buffer);
+	free(package.buffer);
 	free(aux);
 
 	if (status == -1) return 0;
@@ -133,7 +133,7 @@ void local_deconstruct_package(package_t *package){
 	package->size  = package->buffer[1] >> 1;
    	package->seq  = ((package->buffer[1] & 0b1) << 4) | (package->buffer[2] >> 4);
    	package->type = package->buffer[2] & 0b1111;
-	memcpy(data, &(package->buffer[4]), package->size);			// copia a area de dados do buffer para dados
+	memcpy(package->data, &(package->buffer[4]), package->size);			// copia a area de dados do buffer para dados
 }
 
 // retorna 1 caso receba uma mensagem com marcador de inicio
@@ -147,7 +147,6 @@ int protocol_recieve_package(int socket, package_t *package){
 	// verifica se tem marcador de inicio
 	if (aux[0] != INIT_SEQUENCE) return 0;
 
-
 	// remove os bytes 0xff depois de 0x88 e 0x81 e guarda no buffer
 	int j = 0;
 	for (int i=0; i<131; i++){
@@ -156,7 +155,7 @@ int protocol_recieve_package(int socket, package_t *package){
 		j++;
 	}
 
-	local_desconstruct_package(package);
+	local_deconstruct_package(package);
 
 	return 1;
 }
@@ -170,8 +169,8 @@ int recieve_passive(int socket, uchar expected_seq, package_t *package){
 	// espera ate receber um pacote com mensagem de inicio
 	while (!protocol_recieve_package(socket, package));
 
-	if (package.buffer[3] != checksum(package)) return 0;
-	if (package.seq != expected_seq) return -1;
+	if (package->buffer[3] != local_checksum(*package)) return 0;
+	if (package->seq != expected_seq) return -1;
 	return 1;
 }
 

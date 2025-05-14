@@ -31,12 +31,12 @@
 	//================================STRUCT DE PACOTE========================================
 
 	typedef struct package_t{
-		uchar buffer[131];
+		uchar *buffer;	// (os pacotes de recebimento devem alocar 131 bytes para esse *) 
 		uchar size;
 		uchar seq;
 		uchar type;
 		uchar data[127];
-	}
+	} package_t;
 
 	//==============================FUNÇÕES DO PROTOCOLO======================================
 
