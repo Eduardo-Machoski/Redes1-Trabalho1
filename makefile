@@ -42,6 +42,7 @@ clean-server:
 	rm -f $(SERVER_OBJS)
 
 purge: purge-client purge-server
+	rmdir $(BIN_DIR)/tmp
 
 purge-client: clean-client
 	rm -f $(BIN_DIR)/client
