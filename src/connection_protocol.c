@@ -183,21 +183,21 @@ int protocol_recieve_passive(int socket, uchar expected_seq, package_t *package)
 // retorna -1 caso a mensagem seja repetida
 // retorna -2 caso ocorra timeout
 // retorna 1 caso mensagem nova
-int protocol_recieve_active(int socket, uchar expected_seq, package_t *current_package, package_t *last_package){ 
+int protocol_recieve_active(int socket, uchar expected_seq, package_t *package){ 
 	// seta timeout
 	long long comeco = timestamp();
 	struct timeval timeout = { .tv_sec = timeoutMillis/1000, .tv_usec = (timeoutMillis%1000) * 1000 };
     setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
 
 	do	
-		if(local_recieve_package(socket, *current_package)){	
+		if(local_recieve_package(socket, *package)){	
 			timeoutMillis = 1000;			// volta o tempo de timeout original
 
 			// verifica checksum
-			if ((current_package->buffer[3] != local_checksum(*current_package))) return 0;
+			if ((package->buffer[3] != local_checksum(*package))) return 0;
 
 			//verifica numero de sequencia
-			if (current_package->seq != expected_seq) return -1;
+			if (package->seq != expected_seq) return -1;
 
 			return 1;
 		}
