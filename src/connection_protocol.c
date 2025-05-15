@@ -13,9 +13,6 @@
 // variavel global de controle de timeout
 long long timeoutMillis = 1000;
 
-// buffer global para recebimento de pacotes
-uchar recieve_buffer[131];
-
 int protocol_create_raw_socket(char* interface_name) {
     // Cria arquivo para o socket sem qualquer protocolo
     int new_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
@@ -141,7 +138,7 @@ void local_deconstruct_package(package_t *package){
 
 // retorna 1 caso receba uma mensagem com marcador de inicio
 // retorna 0 caso contrario
-int protocol_recieve_package(int socket, package_t *package){ 
+int local_recieve_package(int socket, package_t *package){ 
 	uchar aux[262];
 
 	// recebe pacote em aux
@@ -150,7 +147,8 @@ int protocol_recieve_package(int socket, package_t *package){
 	// verifica se tem marcador de inicio
 	if (aux[0] != INIT_SEQUENCE) return 0;
 
-	package->buffer = recieve_buffer;
+	if (!package->buffer) package->buffer = malloc(131);
+	if (!package->buffer) exit(1);
 
 	// remove os bytes 0xff depois de 0x88 e 0x81 e guarda no buffer
 	int j = 0;
@@ -170,50 +168,43 @@ int protocol_recieve_package(int socket, package_t *package){
 // retorna 0 caso a mensagem contenha erro
 // retorna -1 caso a mensagem seja repetida
 // retorna 1 caso nova mensagem
-int recieve_passive(int socket, uchar expected_seq, package_t *package){
+int protocol_recieve_passive(int socket, uchar expected_seq, package_t *package){
 	// espera ate receber um pacote com mensagem de inicio
-	while (!protocol_recieve_package(socket, package));
+	while (!local_recieve_package(socket, package));
 
 	if (package->buffer[3] != local_checksum(*package)) return 0;
 	if (package->seq != expected_seq) return -1;
 	return 1;
 }
 
-
-// retorna 1 caso receba mensagem valida
-// retorna 0 em caso de timeout
-int recieve_active(int socket, package_t *current_package, package_t *last_package){ 
+// função de recieve com timeout
+// essa função serve para recieves ativos, que são de respostas de sends
+// retorna 0 caso mensagem contenha erro
+// retorna -1 caso a mensagem seja repetida
+// retorna -2 caso ocorra timeout
+// retorna 1 caso mensagem nova
+int protocol_recieve_active(int socket, uchar expected_seq, package_t *current_package, package_t *last_package){ 
 	// seta timeout
 	long long comeco = timestamp();
 	struct timeval timeout = { .tv_sec = timeoutMillis/1000, .tv_usec = (timeoutMillis%1000) * 1000 };
     setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
-	uchar aux[262];
 
-	do{	
-		/*
-		// recebe mensagem em aux
-		recv(socket, aux, 262, 0);
-		
-		// remove os bytes 0xff depois de 0x88 e 0x81 e guarda no buffer
-		int j = 0;
-		for (int i=0; i<131; i++){
-			buffer[i] = aux[j];
-			if (((aux[j] == 0x88) || (aux[j] == 0x81)) && (aux[j+1] == 0xff)) j++;
-			j++;
-		}
+	do	
+		if(local_recieve_package(socket, *current_package)){	
+			timeoutMillis = 1000;			// volta o tempo de timeout original
 
-		local_deconstruct_package(buffer, size, seq, type, data);
+			// verifica checksum
+			if ((current_package->buffer[3] != local_checksum(*current_package))) return 0;
 
-		// verifica checksum e INIT_SEQUENCE
-		if ((buffer[3] == local_checksum(buffer, *size)) && (buffer[0] == INIT_SEQUENCE)){
-			timeoutMillis = 1000;		//volta o timeout a 1 segundo	
+			//verifica numero de sequencia
+			if (current_package->seq != expected_seq) return -1;
+
 			return 1;
 		}
-		*/
-	}while(timestamp() - comeco <= timeoutMillis);
+	while(timestamp() - comeco <= timeoutMillis);
 	
 	// recuo exponencial
 	timeoutMillis *= 2;
-	return 0;
+	return -2;
 }
 

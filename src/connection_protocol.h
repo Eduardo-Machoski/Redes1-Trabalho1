@@ -44,6 +44,8 @@
 
 	int protocol_send_package(int socket, package_t package);
 
-	int protocol_recieve_package(int socket, package_t *package);
+	int protocol_recieve_passive(int socket, uchar expected_seq, package_t *package);
+	
+	int protocol_recieve_active(int socket, uchar expected_seq, package_t *current_package,  package_t *last_package);
 
 #endif
