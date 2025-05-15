@@ -109,7 +109,7 @@ uchar client_get_valid_command(){
 unsigned int client_send_command_request(uchar command, uchar *treasure_type){
 
 	// Envia a mensagem de comando para o servidor
-	protocol_send_message(connection_socket, 0, 1, command, NULL);
+	protocol_send_package(connection_socket, 0, 1, command, NULL);
 
 	uchar buffer[131];
 	uchar size;
@@ -118,7 +118,7 @@ unsigned int client_send_command_request(uchar command, uchar *treasure_type){
 	uchar data[127];
 
 	// Recebe a resposta do servidor
-	protocol_recieve_message(connection_socket, buffer, &size, &seq, &type, data);
+	protocol_recieve_package(connection_socket, buffer, &size, &seq, &type, data);
 
 	switch (type){
 		// Andou para uma casa vazia

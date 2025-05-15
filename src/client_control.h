@@ -1,21 +1,14 @@
 #ifndef __CLIENT__
 #define __CLIENT__
 
+	#include "struct_board.h"
+
 	#define EMPTY 0
 	#define TREASURE 1
 	#define FAIL 2
 
-	#define BOARDSIZE 8
-	#define TREASURES 8
-
 	typedef unsigned char uchar;
 
-	typedef struct board{
-		 char board[BOARDSIZE][BOARDSIZE] ;        // Tabuleiro no seu estado atual
-		 uchar ** Treasure_path ;   // Paths para os arquivos de tesouro
-		 unsigned int player_x ;   // Posicao x atual do player
-		 unsigned int player_y ;   // Posicao y atual do player
-	} board;
 
 	// Inicializa o jogo e seus componente 
 		// - Tabuleiro
