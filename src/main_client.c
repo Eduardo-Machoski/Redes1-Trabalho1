@@ -1,43 +1,59 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "client_control.h"
 
-//fluxo principal do jogo por parte do cliente
-int main(){	
-	
-   client_set_up_game();
+int main(){
 
-   unsigned char next_command;
-	unsigned char treasure_type;
+	client_init_game();
 
-   unsigned int command_response;
+	client_print_board();
 
-   // sem criterio de parada por enquanto (precisa fazer)
-   while(1 == 1){
-       
-      client_print_board();
-       
-		next_command = client_get_valid_command();	
+	uchar command_response;
 
-      command_response = client_send_command_request(next_command, &treasure_type);
+	while(1 == 1){
+		client_get_valid_command();
 
-      // Tratamento das respostas do servidor
-      switch (command_response) {
-			case EMPTY:
-            client_walk_empty(next_command);
-            break;
-         case TREASURE:
-            client_walk_treasure(next_command, treasure_type);
-            break;
-         case FAIL:
-            break;
-         default:
-            perror("Falha commando invalido");
-            exit(1);
-            break;
-      }
-   }
+		command_response = client_send_command_request();
 
-   return 0;
+		switch(command_response){
+			
+			// Player andou para uma casa vazia
+			case OK:
+				
+				client_walk();
+
+				client_print_board();
+				break;
+
+			// Player andou para uma casa com tesouro
+			case (VIDEO || IMAGEM || TEXTO):
+				
+				// Cliente recebe o tesouro do servidor
+				client_recieve_treasure(command_response);
+
+				// Anda para a casa com tesouro
+				client_walk();
+				client_print_board();
+
+				// Abre o tesouro conforme o seu tipo
+				client_open_treasure(command_response);
+
+				break;
+
+			// Player nao se move
+			case ACK:
+				client_print_board();
+				break;
+
+			// Caso tenha alguma falha no tipo de resposta do servidor
+			default:
+				perror("Falha resposta servidor invalida!");
+				exit(1);
+				break;
+
+		}
+	}
+
+	return 0;
 }

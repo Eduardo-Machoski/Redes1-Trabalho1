@@ -1,154 +1,147 @@
 #include "client_control.h"
-#include "connection_protocol.h"
 
 #include <stdio.h>
-#include <signal.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <ctype.h>
 
-board g_board;
-int connection_socket;
+//=====================VARIAVEIS GLOBAIS================================
 
-//
-//======================================================================
-//
+board g_board;					// Estado atual do tabuleiro
 
-// Inicializa o tabuleiro e seus componentes
-// Configura a conexao com o servidor
-void client_set_up_game(){
-    
-	// Inicializa o tabuleiro e seus componentes
-   // Tabuleiro 'desconhecido'
-   for(int i = 0; i < BOARDSIZE; i++)
-      for(int j = 0; j < BOARDSIZE; j++)
-         g_board.board[i][j] = '#';
+char *Treasure_path;			// Path para o ultimo tesouro recebido
 
-   // Posicao inicial do player
-   g_board.board[0][0] = '0';
+uchar seq_package;			// Sequencia do pacote a ser enviada
+uchar expected_package;		// Sequencia esperada da resposta
 
-   g_board.player_x = 0;
-   g_board.player_y = 0;
+package_t command_request; // Pacote com o comando enviado
+package_t last_package;		// Pacote com a ultima mensagem enviada
+package_t answer_package;	// Ultima resposta do servidor
 
-   if(!(g_board.Treasure_path = (uchar**)malloc(sizeof(uchar*) * TREASURES))){
-      perror("Erro malloc treasure path");
-      exit(1);    
-   }
+int connection_socket;		// Numero do socket para envio de pacotes
+
+
+//===========================FUNCOES INTERNAS===================================
+
+// Incrementa o seq_package (vai de 0 a 31 circular)
+void local_inc_seq(){
+	seq_package += 1;
+
+	if(seq_package == 32)
+		seq_package = 0;
+}
+
+//===========================FUNCOES EXTERNAS===================================
+
+// Inicializa o jogo e seus componente
+	// - Tabuleiro
+	// - Pacotes de mensagens
+	// - Conexao com o servidor
+void client_init_game(){
+	
+	// Inicializa tabuleiro
+	for(int i = 0; i < BOARDSIZE; i++)
+		for(int j = 0; j < BOARDSIZE; j++)
+			g_board.board[i][j] = '#';
+
+	// Posicao inicial do player
+	g_board.board[0][0] = '0';
+
+	g_board.player_x = 0;
+	g_board.player_y = 0;
+
+	// Configura os dados de pacotes de mensagens
+	seq_package = 0;
+	expected_package = 0;
+	
+	command_request.size = 0;
 
 	// Configura a conexao com o servidor
 	connection_socket = protocol_create_raw_socket(PATH_INTERFACE);
-
 }
 
-//
 //======================================================================
-//
 
 // Imprime o estado atual do tabuleiro
 void client_print_board(){
-
-   // Tabuleiro 'desconhecido'
+	// Tabuleiro 'desconhecido'
    for(int i = BOARDSIZE - 1; i >= 0; i--){
       for(int j = 0; j < BOARDSIZE; j++)
          printf("%c", g_board.board[i][j]);
-      printf("\n");        
+      printf("\n");
    }
 }
 
-//
 //======================================================================
-//
 
-// Obtem um comando valido do usuario e retorna
+// Obtem um comando valido do usuario
 // Comandos validos:
 	// - 'A', 'a'
-	// - 'S', 's' 
-	// - 'D', 'd' 
-	// - 'W', 'w' 
-uchar client_get_valid_command(){
+	// - 'S', 's'
+	// - 'D', 'd'
+	// - 'W', 'w'
+// Monta o command_request com base no comando
+void client_get_valid_command(){
 	uchar c = '\0';
 
-	while((c != 'A') && (c != 'S') && (c != 'W') && (c != 'D')){
-		c = getchar();
-		c = toupper(c);
-	}
+   while((c != 'A') && (c != 'S') && (c != 'W') && (c != 'D')){
+      c = getchar();
+      c = toupper(c);
+   }
 
-	switch (c){
-		case 'A': 
-			c = ESQUERDA;
-			break;
-		case 'S':
-			c = BAIXO;
-			break;
-		case 'D': 
-			c = DIREITA;
-			break;
-		case 'W': 
-			c = CIMA;
-			break;
-		default:
-			perror("COMO?");
-			exit(1);
-			break;
-	}
-
-	return c;
+   switch (c){
+      case 'A':
+			command_request.type = ESQUERDA;
+         break;
+      case 'S':
+			command_request.type = BAIXO;
+         break;
+      case 'D':
+			command_request.type = DIREITA;
+         break;
+      case 'W':
+			command_request.type = CIMA;
+         break;
+      default:
+			perror("Erro tipo comando!");
+         exit(1);
+         break;
+   }
 }
 
-//
 //======================================================================
-//
 
-// Envia o comando desejado ao servidor
-// Recebe a resposta do servidor e retorna o codigo de resposta
+// Envia o command_request ao servidor
+// Recebe a resposta do servidor
 // Caso encontre um tesouro recebe o tesouro e salva seu path em Treasure_path
 // Respostas:
-    // - EMPTY : Sucesso no comando, mas posicao no tabuleiro sem tesouro
-    // - TREASURE : Sucesso no comando, posicao no tabuleiro com tesouro
-    // - FAIL : Falha no comando (player fica parado)
-unsigned int client_send_command_request(uchar command, uchar *treasure_type){
+	 // - OK : Posicao no tabuleiro sem tesouro
+	 // - VIDEO/TEXTO/IMAGEM : Posicao no tabuleiro com tesouro
+	 // - ACK :  Player fica parado
+uchar client_send_command_request(){
 
-	// Envia a mensagem de comando para o servidor
-	protocol_send_package(connection_socket, 0, 1, command, NULL);
-
-	uchar buffer[131];
-	uchar size;
-	uchar seq;
-	uchar type;
-	uchar data[127];
+	// Atribui a sequencia do comando atual
+	command_request.seq = seq_package;
+	
+	// Incrementa seq_package
+	local_inc_seq();
 
 	// Recebe a resposta do servidor
-	protocol_recieve_package(connection_socket, buffer, &size, &seq, &type, data);
+	protocol_recieve_active(connection_socket, expected_package, &answer_package);
 
-	switch (type){
-		// Andou para uma casa vazia
-		case (ACK): return command;
-
-		// Andou e encontrou um tesouro
-		case (TEXTO || VIDEO || IMAGEM): 
-			*treasure_type = type;
-			return TREASURE;
-
-		// Nao andou
-		case (OK): return FAIL;
-		default:
-			perror("TIPO DE MENSAGEM INCORRETO");
-			exit(1);
-			break;
-	}
+	return answer_package.type;
 }
 
-//
 //======================================================================
-//
 
-// Anda no tabuleiro para uma casa vazia
-void client_walk_empty(uchar command){
-    
-   // marca a casa atual do player como ja visitada
+// Anda no tabuleiro
+void client_walk(){
+	
+	// marca a casa atual do player como ja visitada
    g_board.board[g_board.player_y][g_board.player_x] = ' ';
-    
-   switch (command){
+
+	// Move o player com base no ultimo comando enviado ao servidor
+   switch (command_request.type){
       case CIMA:
          g_board.player_y += 1;
          break;
@@ -162,16 +155,34 @@ void client_walk_empty(uchar command){
          g_board.player_x += 1;
          break;
    }
-
    g_board.board[g_board.player_y][g_board.player_x] = '0';
 }
 
-//
 //======================================================================
-//
 
-// Anda no tabuleiro para uma casa com um tesouro
-// Realiza a acao do tesouro (abre txt, da play no mp4 e abre o jpg)
-void client_walk_treasure(uchar command, uchar treasure_type){
+// Recebe o tesouro do servidor na seginte ordem:
+	// TAMANHO - Verifica se ha espaco em disco suficiente
+	// DADOS - Repete recepcao de dados
+	// FIM_FILE - Fim da recepcao de dados e do tesouro
+void client_recieve_treasure(uchar type){
+}
 
+//======================================================================
+
+// Abre o tesouro com base em:
+	//type : tipo do tesouro
+	//Treasure_path : caminho para o tesouro recebido por ultimo
+void client_open_treasure(uchar type){
+	switch (type){
+		case VIDEO:
+			break;
+		case TEXTO:
+			break;
+		case IMAGEM:
+			break;
+		default:
+			perror("Erro tipo de tesouro");
+			exit(1);
+			break;
+	}
 }

@@ -178,7 +178,7 @@ int protocol_recieve_active(int socket, uchar expected_seq, package_t *package){
     setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
 
 	do	
-		if(local_recieve_package(socket, *package)){	
+		if(local_recieve_package(socket, package)){	
 			timeoutMillis = 1000;			// volta o tempo de timeout original
 
 			// verifica checksum
