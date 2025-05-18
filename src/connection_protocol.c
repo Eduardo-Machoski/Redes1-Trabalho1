@@ -70,38 +70,30 @@ void local_build_package(package_t *package){
 
 // retorna 1 com sucesso
 // retorna 0 caso contrario
-int protocol_send_package(int socket, package_t package){
-	uchar buffer_size = 4 + package.size;		
+int protocol_send_package(int socket, package_t *package){
+	uchar buffer_size = 4 + package->size;		
 	
 	// verifica se parametros estão dentro dos limites
-	if ((package.seq > 31) || (package.size > 127) || (package.type > 15)) return 0;
+	if ((package->seq > 31) || (package->size > 127) || (package->type > 15)) return 0;
+	
+	// constroi o pacote
+	local_build_package(package);
 
 	// conta quantos bytes 0x88 e 0x81 tem na mensagem
-	// só iram ocorrer esses bytes no campo data
-	for (int i=0; i<package.size; i++)
-		if ((package.data[i] == 0x81) || (package.data[i] == 0x88)) 
+	for (int i=0; i<package->size + 4; i++)
+		if ((package->buffer[i] == 0x81) || (package->buffer[i] == 0x88)) 
 			buffer_size++;
 
-	// aloca o pacote com base no seu tamanho total
-	// pacotes precisam ter no minimo 14 bytes
-	if (buffer_size < 14){
-		buffer_size = 14;
-		package.buffer = malloc(14);
-		for (int i=0; i<14; i++) package.buffer[i] = 0x00;
-	} else package.buffer = malloc(buffer_size);
-	if (!package.buffer) exit(1);
+	if (buffer_size < 14) buffer_size = 14;
 
-	// constroi o pacote
-	local_build_package(&package);
-	
 	uchar *aux = malloc(buffer_size);
 	if (!aux) exit(1);
 
 	// adiciona bytes 0xff depois de 0x88 e 0x81 e envia
 	int j=0;
-	for (int i=0; i<(4+package.size); i++){
-		aux[j] = package.buffer[i];
-		if((package.buffer[i] == 0x88) || (package.buffer[i] == 0x81)){
+	for (int i=0; i<(4+package->size); i++){
+		aux[j] = package->buffer[i];
+		if((package->buffer[i] == 0x88) || (package->buffer[i] == 0x81)){
 			j++;
 			aux[j] = 0xff;
 		}
@@ -110,7 +102,6 @@ int protocol_send_package(int socket, package_t package){
 
 	int status = send(socket, aux, buffer_size, 0); 
 
-	free(package.buffer);
 	free(aux);
 
 	if (status == -1) return 0;
@@ -147,9 +138,6 @@ int local_recieve_package(int socket, package_t *package){
 	// verifica se tem marcador de inicio
 	if (aux[0] != INIT_SEQUENCE) return 0;
 
-	if (!package->buffer) package->buffer = malloc(131);
-	if (!package->buffer) exit(1);
-
 	// remove os bytes 0xff depois de 0x88 e 0x81 e guarda no buffer
 	int j = 0;
 	for (int i=0; i<131; i++){
@@ -183,21 +171,21 @@ int protocol_recieve_passive(int socket, uchar expected_seq, package_t *package)
 // retorna -1 caso a mensagem seja repetida
 // retorna -2 caso ocorra timeout
 // retorna 1 caso mensagem nova
-int protocol_recieve_active(int socket, uchar expected_seq, package_t *current_package, package_t *last_package){ 
+int protocol_recieve_active(int socket, uchar expected_seq, package_t *package){ 
 	// seta timeout
 	long long comeco = timestamp();
 	struct timeval timeout = { .tv_sec = timeoutMillis/1000, .tv_usec = (timeoutMillis%1000) * 1000 };
     setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
 
 	do	
-		if(local_recieve_package(socket, *current_package)){	
+		if(local_recieve_package(socket, *package)){	
 			timeoutMillis = 1000;			// volta o tempo de timeout original
 
 			// verifica checksum
-			if ((current_package->buffer[3] != local_checksum(*current_package))) return 0;
+			if ((package->buffer[3] != local_checksum(*package))) return 0;
 
 			//verifica numero de sequencia
-			if (current_package->seq != expected_seq) return -1;
+			if (package->seq != expected_seq) return -1;
 
 			return 1;
 		}

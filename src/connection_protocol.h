@@ -31,7 +31,7 @@
 	//================================STRUCT DE PACOTE========================================
 
 	typedef struct package_t{
-		uchar *buffer;	
+		uchar buffer[131];	
 		uchar size;
 		uchar seq;
 		uchar type;
@@ -42,10 +42,16 @@
 
 	int protocol_create_raw_socket(char* interface_name);
 
-	int protocol_send_package(int socket, package_t package);
+	int protocol_send_package(int socket, package_t *package);
 
 	int protocol_recieve_passive(int socket, uchar expected_seq, package_t *package);
 	
-	int protocol_recieve_active(int socket, uchar expected_seq, package_t *current_package,  package_t *last_package);
+	int protocol_recieve_active(int socket, uchar expected_seq, package_t *package);
+
+	//==============================FUNÇÕES DE ARQUIVOS======================================
+
+	int protocol_recieve_archive(int socket, char *archive_name);
+
+	int protocol_send_archive(int socket, char *archive_path);
 
 #endif
