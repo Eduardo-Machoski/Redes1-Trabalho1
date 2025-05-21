@@ -276,9 +276,13 @@ void protocol_recieve_active(package_t *package, package_t *last_package){
 					// Sequencia correta -> sai do loop 
 					if(package->seq == g_expected_seq)
 						valid = true;
-					else if(package->seq < g_expected_seq)  	// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
+					else if(package->seq < g_expected_seq){  	// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
 						protocol_send_package(last_package);
-					else												// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
+
+						// Reseta o timeout
+						timeoutMillis = 1000;
+						beggining = timestamp();
+					} else												// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
 						printf("Tem que fazer");
 
 
@@ -289,10 +293,18 @@ void protocol_recieve_active(package_t *package, package_t *last_package){
 					if(valid && package->type == NACK){
 						valid = false;
 						protocol_send_package(last_package);
+
+						// Reseta o timeout
+						timeoutMillis = 1000;
+						beggining = timestamp();
 					}
 				}
 			}
 		while(timestamp() - beggining <= timeoutMillis);
+
+		// Timeout estourado
+		if(!valid)
+			protocol_send_package(last_package);
 
 		// recuo exponencial do tempo de timeout
 		timeoutMillis = timeoutMillis << 1;

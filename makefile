@@ -15,11 +15,11 @@ SERVER_SRCS = $(SRC_DIR)/main_server.c $(SRC_DIR)/server_control.c $(SRC_DIR)/co
 CLIENT_OBJS = $(patsubst $(SRC_DIR)/%.c,$(TMP_DIR)/%.o,$(CLIENT_SRCS))
 SERVER_OBJS = $(patsubst $(SRC_DIR)/%.c,$(TMP_DIR)/%.o,$(SERVER_SRCS))
 
-# purges and then remakes everything
-remake: purge all
-
 # Targets
 all: client server
+
+# purges and then remakes everything
+remake: purge all
 
 client: $(CLIENT_OBJS)
 	$(CC) $(CFLAGS) -o $(BIN_DIR)/client $(CLIENT_OBJS)
