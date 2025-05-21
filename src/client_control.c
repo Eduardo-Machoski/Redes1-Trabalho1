@@ -11,25 +11,14 @@ board g_board;					// Estado atual do tabuleiro
 
 char *Treasure_path;			// Path para o ultimo tesouro recebido
 
-uchar seq_package;			// Sequencia do pacote a ser enviada
-uchar expected_package;		// Sequencia esperada da resposta
-
 package_t command_request; // Pacote com o comando enviado
 package_t last_package;		// Pacote com a ultima mensagem enviada
 package_t answer_package;	// Ultima resposta do servidor
 
-int connection_socket;		// Numero do socket para envio de pacotes
 
 
 //===========================FUNCOES INTERNAS===================================
 
-// Incrementa o seq_package (vai de 0 a 31 circular)
-void local_inc_seq(){
-	seq_package += 1;
-
-	if(seq_package == 32)
-		seq_package = 0;
-}
 
 //===========================FUNCOES EXTERNAS===================================
 
@@ -50,14 +39,10 @@ void client_init_game(){
 	g_board.player_x = 0;
 	g_board.player_y = 0;
 
-	// Configura os dados de pacotes de mensagens
-	seq_package = 0;
-	expected_package = 0;
-	
 	command_request.size = 0;
 
 	// Configura a conexao com o servidor
-	connection_socket = protocol_create_raw_socket(PATH_INTERFACE);
+	 protocol_init(PATH_INTERFACE);
 }
 
 //======================================================================
@@ -107,6 +92,10 @@ void client_get_valid_command(){
          exit(1);
          break;
    }
+
+	#ifdef DEBUG
+		printf("Comando: %c ", c);
+	#endif
 }
 
 //======================================================================
@@ -120,14 +109,22 @@ void client_get_valid_command(){
 	 // - ACK :  Player fica parado
 uchar client_send_command_request(){
 
-	// Atribui a sequencia do comando atual
-	command_request.seq = seq_package;
-	
-	// Incrementa seq_package
-	local_inc_seq();
+	// Envia o command_request
+	protocol_send_package(&command_request);
 
 	// Recebe a resposta do servidor
-	protocol_recieve_active(connection_socket, expected_package, &answer_package);
+	protocol_recieve_active(&answer_package, &last_package);
+
+	//Atualiza o ultimo pacote enviado
+	last_package.size = command_request.size;
+	last_package.seq = command_request.seq;
+	last_package.type = command_request.type;
+
+	for(int i = 0; i < 127; i++)
+		last_package.data[i] = command_request.data[i];
+	
+	for(int i = 0; i < 131; i++)
+		last_package.buffer[i] = command_request.buffer[i];
 
 	return answer_package.type;
 }

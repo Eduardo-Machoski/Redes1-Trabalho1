@@ -5,15 +5,29 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <sys/time.h>
 
 #include "connection_protocol.h"
  
-// variavel global de controle de timeout
-long long timeoutMillis = 1000;
 
-int protocol_create_raw_socket(char* interface_name) {
+uchar g_expected_seq;   // Sequencia esperada da proxima mensagem a receber
+uchar g_current_seq;    // Sequencia do pacote atual
+
+int g_socket;				// Variavel com o socket de comunicacao
+
+package_t g_nack;       // Pacote nack
+
+// Incrementa seq (vai de 0 a 31 circular)                            
+void local_inc_seq(uchar *seq){                                                           
+   *seq += 1;                                                            
+                                                                                
+   if(*seq == 32)                                                        
+      *seq = 0;                                                          
+}   
+
+void local_create_raw_socket(char* interface_name) {
     // Cria arquivo para o socket sem qualquer protocolo
     int new_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (new_socket == -1) {
@@ -43,7 +57,19 @@ int protocol_create_raw_socket(char* interface_name) {
         exit(-1);
     }
  
-    return new_socket;
+   g_socket = new_socket;
+}
+
+//
+//======================================================================
+//
+
+void protocol_init(char* interface_name) {
+	local_create_raw_socket(interface_name);
+
+	// Inicializa valores de controle
+	g_expected_seq = 0;
+	g_current_seq = 0;
 }
 
 //
@@ -70,8 +96,11 @@ void local_build_package(package_t *package){
 
 // retorna 1 com sucesso
 // retorna 0 caso contrario
-int protocol_send_package(int socket, package_t *package){
+int protocol_send_package(package_t *package){
 	uchar buffer_size = 4 + package->size;		
+
+	package->seq = g_current_seq;
+
 	
 	// verifica se parametros estão dentro dos limites
 	if ((package->seq > 31) || (package->size > 127) || (package->type > 15)) return 0;
@@ -100,9 +129,13 @@ int protocol_send_package(int socket, package_t *package){
 		j++;
 	}
 
-	int status = send(socket, aux, buffer_size, 0); 
+	int status = send(g_socket, aux, buffer_size, 0); 
 
 	free(aux);
+
+	#ifdef DEBUG
+		printf("Enviado seq: %u, Tipo: %u\n", g_current_seq, package->type);
+	#endif
 
 	if (status == -1) return 0;
 	return 1;
@@ -129,11 +162,11 @@ void local_deconstruct_package(package_t *package){
 
 // retorna 1 caso receba uma mensagem com marcador de inicio
 // retorna 0 caso contrario
-int local_recieve_package(int socket, package_t *package){ 
+int local_recieve_package(package_t *package){ 
 	uchar aux[262];
 
 	// recebe pacote em aux
-	if (!recv(socket, aux, 262, 0)) return 0;
+	if (!recv(g_socket, aux, 262, 0)) return 0;
 
 	// verifica se tem marcador de inicio
 	if (aux[0] != INIT_SEQUENCE) return 0;
@@ -153,46 +186,117 @@ int local_recieve_package(int socket, package_t *package){
 
 // função de recieve sem timeout
 // essa função serve para recieves passivos, que não são para respostas de sends
-// retorna 0 caso a mensagem contenha erro
-// retorna -1 caso a mensagem seja repetida
-// retorna 1 caso nova mensagem
-int protocol_recieve_passive(int socket, uchar expected_seq, package_t *package){
-	// espera ate receber um pacote com mensagem de inicio
-	while (!local_recieve_package(socket, package));
+// Verifica:
+	// Checksum
+	// Sequencia da mensagem
+void protocol_recieve_passive(package_t *package, package_t *last_package){
 
-	if (package->buffer[3] != local_checksum(*package)) return 0;
-	if (package->seq != expected_seq) return -1;
-	return 1;
+	bool valid = false;
+
+	//Repete ate receber uma resposta valida e com sequencia correta
+	while(!valid){
+		// Recebe um pacote com mensagem de inicio
+		while (!local_recieve_package(package));
+
+		// Verifica o checksum do pacote
+		if (package->buffer[3] != local_checksum(*package)){
+			// Erro checksum -> Envia nack e volta a esperar a mensagem
+			protocol_send_package(&g_nack);
+			local_inc_seq(&g_current_seq);
+			continue;
+		}
+
+		// Sucesso checksum -> Verifica a sequencia da mensagem recebida
+
+		#ifdef DEBUG
+			printf("Recebido seq: %u : esperado: %u, Tipo: %u\n",package->seq, g_expected_seq, package->type);
+		#endif
+
+		// Sequencia correta -> sai do loop 
+		if(package->seq == g_expected_seq)
+			valid = true;
+		else if(package->seq < g_expected_seq)  	// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
+			protocol_send_package(last_package);
+		else												// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
+			printf("Tem que fazer");
+
+
+		// Atualiza a sequencia de mensagem esperada
+		local_inc_seq(&g_expected_seq);
+
+		// Se recebeu um nack envia a ultima mensagem novamente e continua no loop
+		if(valid && package->type == NACK){
+			valid = false;
+			protocol_send_package(last_package);
+		}
+	}
 }
 
 // função de recieve com timeout
 // essa função serve para recieves ativos, que são de respostas de sends
-// retorna 0 caso mensagem contenha erro
-// retorna -1 caso a mensagem seja repetida
-// retorna -2 caso ocorra timeout
-// retorna 1 caso mensagem nova
-int protocol_recieve_active(int socket, uchar expected_seq, package_t *package){ 
-	// seta timeout
-	long long comeco = timestamp();
-	struct timeval timeout = { .tv_sec = timeoutMillis/1000, .tv_usec = (timeoutMillis%1000) * 1000 };
-    setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
+// Verifica:
+	// Checksum
+	// Sequencia
+// Contem timeout
+void protocol_recieve_active(package_t *package, package_t *last_package){ 
 
-	do	
-		if(local_recieve_package(socket, package)){	
-			timeoutMillis = 1000;			// volta o tempo de timeout original
+	bool valid = false;
+	bool check;
 
-			// verifica checksum
-			if ((package->buffer[3] != local_checksum(*package))) return 0;
+	long long beggining;
+	struct timeval timeout;
+	long long timeoutMillis = 1000;
 
-			//verifica numero de sequencia
-			if (package->seq != expected_seq) return -1;
+	while(!valid){
+		beggining = timestamp();
+		timeout.tv_sec = timeoutMillis/1000;
+		timeout.tv_usec = (timeoutMillis%1000) * 1000;
+   	setsockopt(g_socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
 
-			return 1;
-		}
-	while(timestamp() - comeco <= timeoutMillis);
-	
-	// recuo exponencial
-	timeoutMillis *= 2;
-	return -2;
+		do
+			if(local_recieve_package(package)){	
+				check = true;
+				timeoutMillis = 1000;			// volta o tempo de timeout original
+
+				// Verifica o checksum do pacote
+				if (package->buffer[3] != local_checksum(*package)){
+					// Erro checksum -> Envia nack e volta a esperar a mensagem
+					protocol_send_package(&g_nack);
+					local_inc_seq(&g_current_seq);
+					check = false;
+				}
+
+				if(check){
+					// Sucesso checksum -> Verifica a sequencia da mensagem recebida
+
+					#ifdef DEBUG
+						printf("Recebido seq: %u : esperado: %u, Tipo: %u\n",package->seq, g_expected_seq, package->type);
+					#endif
+
+					// Sequencia correta -> sai do loop 
+					if(package->seq == g_expected_seq)
+						valid = true;
+					else if(package->seq < g_expected_seq)  	// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
+						protocol_send_package(last_package);
+					else												// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
+						printf("Tem que fazer");
+
+
+					// Atualiza a sequencia de mensagem esperada
+					local_inc_seq(&g_expected_seq);
+
+					// Se recebeu um nack envia a ultima mensagem novamente e continua no loop
+					if(valid && package->type == NACK){
+						valid = false;
+						protocol_send_package(last_package);
+					}
+				}
+			}
+		while(timestamp() - beggining <= timeoutMillis);
+
+		// recuo exponencial do tempo de timeout
+		timeoutMillis = timeoutMillis << 1;
+	}
+
 }
 

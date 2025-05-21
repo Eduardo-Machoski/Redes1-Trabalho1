@@ -11,8 +11,8 @@
 #define TREASURE_FOUND -1
 
 typedef struct treasure_t {
-	int x;
-	int y;
+	unsigned int x;
+	unsigned int y;
 	char *path;
 	bool found;
 } treasure_t;
@@ -49,6 +49,6 @@ void server_print_board();
 void server_print_seq_events();
 
 // Envia ao cliente a resposta montada anteriormente
-void server_send_answer();
+void server_send_answer(char* path);
 
 #endif

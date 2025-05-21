@@ -6,26 +6,15 @@
 
 board g_board;						// Estado atual do tabuleiro
 
-package_t send_package;			// Pacote a ser enviado ao cliente
-package_t last_package;			// Ultimo pacote a ser enviado ao cliente
-package_t recieved_package;	// Ultimo pacote recebido do cliente
+package_t send_package;			// Pacote a ser enviado 
+package_t last_package;			// Ultimo pacote enviado 
 
-int connection_socket;			// Numero do socket para envio de pacotes
+package_t recieved_package;	// Ultimo pacote recebido
 
-uchar seq_package;				// Sequencia do pacote a ser enviado
-uchar expected_package;			// Sequencia esperada da resposta
 
 treasure_t treasures[TREASURES];      // Vetor com os tesouros e suas informacoes
 
 //===========================FUNCOES INTERNAS===================================
-
-// Incrementa o seq_package (vai de 0 a 31 circular)
-void local_inc_seq(){
-   seq_package += 1;
-
-   if(seq_package == 32)
-      seq_package = 0;
-}
 
 void local_build_send_package(int type, char *path){
 	switch (type){
@@ -33,7 +22,6 @@ void local_build_send_package(int type, char *path){
 		case (ACK || NACK || OK || FIM_FILE):
 			send_package.type = type;
 			send_package.size = 0;
-			send_package.seq = seq_package;
 		break;
 
 		// Envia o nome do arquivo alem do tipo dele
@@ -67,9 +55,6 @@ void local_build_send_package(int type, char *path){
 			exit (1);
 		break;
 	}
-
-	// Incrementa a sequencia para o proximo pacote
-	local_inc_seq();
 }
 
 // Verifica se a posicao atual do player possui um tesouro
@@ -145,20 +130,18 @@ void server_init(){
 		g_board.board[treasures[i].y][treasures[i].x] = i + '0';
 	}
 	
-	// Configura os dados de pacotes de mensagens
-	seq_package = 0;
-	expected_package = 0;
-
-	connection_socket = protocol_create_raw_socket(PATH_INTERFACE);
+	// Configura o socket de comunicacao
+	protocol_init(PATH_INTERFACE);
 
 }
 
-// Espera passivamente por um comando enviado do cliente
-// Ao receber uma mensagem valida verifica:
-//    - Sequencia
-//    - Checksum
+// Espera passivamente por um pacoteenviado do cliente
+// Retorno:
+	// Tipo do pacote recebido
 uchar server_recieve_command(){
-	return 0;
+	protocol_recieve_passive(&recieved_package, &last_package);
+
+	return recieved_package.type;
 }
 
 // Recebe um commando e tenta andar no board
@@ -243,6 +226,7 @@ void server_print_seq_events(){
 }
 
 // Envia ao cliente a resposta montada anteriormente
-void server_send_answer(){
-	
+void server_send_answer(char *path){
+	//FAZER muita coisa ainda
+	protocol_send_package(&send_package);	
 }
