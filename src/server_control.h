@@ -8,7 +8,7 @@
 #include "struct_board.h"
 #include "connection_protocol.h"
 
-#define TREASURE_FOUND -1
+#define TREASURE_FOUND 99
 
 typedef struct treasure_t {
 	unsigned int x;

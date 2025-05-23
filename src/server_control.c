@@ -16,10 +16,17 @@ treasure_t treasures[TREASURES];      // Vetor com os tesouros e suas informacoe
 
 //===========================FUNCOES INTERNAS===================================
 
-void local_build_send_package(int type, char *path){
+void local_build_send_package(uchar type, char *path){
+	#ifdef DEBUG
+	printf("Local_build_send_package build: %u\n", type);
+	#endif
+
 	switch (type){
 		// Tipos sem dados enviados
-		case (ACK || NACK || OK || FIM_FILE):
+		case ACK:
+		case NACK:
+		case OK:
+		case FIM_FILE:
 			send_package.type = type;
 			send_package.size = 0;
 		break;
@@ -127,7 +134,7 @@ void server_init(){
 		local_init_treasure(i);
 		
 		// Insere as posicoes de cada tesouro no tabuleiro
-		g_board.board[treasures[i].y][treasures[i].x] = i + '0';
+		g_board.board[treasures[i].y][treasures[i].x] = i + '1';
 	}
 	
 	// Configura o socket de comunicacao
@@ -162,6 +169,8 @@ char *server_walk(uchar command){
 
 	bool walk_fail = false;
 
+	g_board.board[g_board.player_y][g_board.player_x] = ' ';
+
 	switch (command){
 		case CIMA:
 				if(g_board.player_y == BOARDSIZE - 1)
@@ -193,9 +202,11 @@ char *server_walk(uchar command){
 			break;
 	}
 
+	g_board.board[g_board.player_y][g_board.player_x] = '0';
+
 	// Player tentou andar para fora do tabuleiro
 	if(!walk_fail){
-		local_build_send_package(ACK, NULL);
+		local_build_send_package(OK, NULL);
 		return NULL;
 	}
 
@@ -203,7 +214,7 @@ char *server_walk(uchar command){
 	char *path = local_treasure_found();
 
 	if(!path)
-		local_build_send_package(OK, path);
+		local_build_send_package(ACK, path);
 	else
 		local_build_send_package(TREASURE_FOUND, path);
 
@@ -228,5 +239,5 @@ void server_print_seq_events(){
 // Envia ao cliente a resposta montada anteriormente
 void server_send_answer(char *path){
 	//FAZER muita coisa ainda
-	protocol_send_package(&send_package);	
+	protocol_send_package(&send_package, true);	
 }
