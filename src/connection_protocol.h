@@ -1,5 +1,7 @@
 #ifndef __PROTOCOL__
 #define __PROTOCOL__
+	#include <stdbool.h>
+	
 	//===============================TIPOS DE MENSAGEM========================================
 	#define ACK 		0
 	#define NACK		1
@@ -40,13 +42,13 @@
 
 	//==============================FUNÇÕES DO PROTOCOLO======================================
 
-	int protocol_create_raw_socket(char* interface_name);
+	void protocol_init(char* interface_name);
 
-	int protocol_send_package(int socket, package_t *package);
+	int protocol_send_package(package_t *package, bool inc);
 
-	int protocol_recieve_passive(int socket, uchar expected_seq, package_t *package);
+	void protocol_recieve_passive(package_t *package, package_t *last_package);
 	
-	int protocol_recieve_active(int socket, uchar expected_seq, package_t *package);
+	void protocol_recieve_active(package_t *package, package_t *last_package);
 
 	//==============================FUNÇÕES DE ARQUIVOS======================================
 

@@ -1,6 +1,6 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall 
+CFLAGS = -Wextra -DDEBUG
 
 # Directories
 SRC_DIR = src
@@ -17,6 +17,9 @@ SERVER_OBJS = $(patsubst $(SRC_DIR)/%.c,$(TMP_DIR)/%.o,$(SERVER_SRCS))
 
 # Targets
 all: client server
+
+# purges and then remakes everything
+remake: purge all
 
 client: $(CLIENT_OBJS)
 	$(CC) $(CFLAGS) -o $(BIN_DIR)/client $(CLIENT_OBJS)

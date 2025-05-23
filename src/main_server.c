@@ -1,34 +1,36 @@
 #include "server_control.h"
 
-int main (){
+int main() {
 
-
-	// Inicializa as structs e a comunicacao com o cliente
-	server_start();
-
-	char command;
+	//Inicializa o servidor e comunicacao com o cliente
+	server_init();
 
 	server_print_board();
 
+	uchar command;
+
+	char *treasure_path;
 	int treasures_remaining = TREASURES;
-	
+
 	while(treasures_remaining > 1){
 
 		// Recebe um comando do cliente
-		command = server_receive_command();
+		command = server_recieve_command();
 
-		// Tenta realizar o comando do cliente
-		// Verifica se encontrou um tesouro
-		treasures_remaining -= server_walk(command);
+		// Realiza o comando do cliente
+		// Retorna o path do tesouro (se encontrado)
+		treasure_path = server_walk(command);
 
-		// Imprime o board e o historico de comandos do cliente
 		server_print_board();
 		server_print_seq_events();
 
-		// Envia ao cliente a resposta montada apos o server_walk
-		server_send_answer();
-	}
+		if(treasure_path)
+			treasures_remaining--;
 
+
+		// Envia o pacote de resposta ao cliente
+		server_send_answer(treasure_path);
+	}
 
 	return 0;
 }

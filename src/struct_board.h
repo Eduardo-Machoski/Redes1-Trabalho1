@@ -9,7 +9,6 @@
 
 	typedef struct board{
 		 char board[BOARDSIZE][BOARDSIZE] ; // Tabuleiro no seu estado atual
-		 uchar ** Treasure_path ;   		   // Paths para os arquivos de tesouro
 		 unsigned int player_x ;  			   // Posicao x atual do player
 		 unsigned int player_y ;   			// Posicao y atual do player
 	} board;
