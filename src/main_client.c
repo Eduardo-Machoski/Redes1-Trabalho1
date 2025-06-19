@@ -27,9 +27,9 @@ int main(){
 				break;
 
 			// Player andou para uma casa com tesouro
-			case (VIDEO):
-			case (IMAGEM):
-			case (TEXTO):
+			case VIDEO:
+			case IMAGEM:
+			case TEXTO:
 				
 				// Cliente recebe o tesouro do servidor
 				client_recieve_treasure(command_response);

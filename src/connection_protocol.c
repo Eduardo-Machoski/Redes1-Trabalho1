@@ -298,7 +298,6 @@ void protocol_recieve_passive(package_t *package){
 void protocol_recieve_active(package_t *package){
 
 	bool valid = false;
-	bool check;
 
 	long long beggining;
 	struct timeval timeout;
@@ -312,7 +311,6 @@ void protocol_recieve_active(package_t *package){
 
 		do
 			if(local_recieve_package(package)){	
-				check = true;
 				timeoutMillis = 1000;			// volta o tempo de timeout original
 
 				// Verifica o checksum do pacote

@@ -207,7 +207,7 @@ char *server_walk(uchar command){
 	g_board.board[g_board.player_y][g_board.player_x] = '0';
 
 	// Player tentou andar para fora do tabuleiro
-	if(!walk_fail){
+	if(walk_fail){
 		local_build_send_package(OK, NULL);
 		return NULL;
 	}
