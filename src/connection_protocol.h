@@ -6,13 +6,13 @@
 	#define ACK 		0
 	#define NACK		1
 	#define OK			2
-	#define TAMANHO		4
+	#define TAMANHO	4
 	#define DADOS		5
 	#define TEXTO		6
 	#define VIDEO		7
 	#define IMAGEM		8
 	#define FIM_FILE	9
-	#define DIREITA		10
+	#define DIREITA	10
 	#define CIMA		11
 	#define BAIXO		12
 	#define ESQUERDA	13
@@ -38,6 +38,7 @@
 		uchar seq;
 		uchar type;
 		uchar data[127];
+		uchar buffer_size;
 	} package_t;
 
 	//==============================FUNÇÕES DO PROTOCOLO======================================
@@ -46,9 +47,9 @@
 
 	int protocol_send_package(package_t *package, bool inc);
 
-	void protocol_recieve_passive(package_t *package, package_t *last_package);
+	void protocol_recieve_passive(package_t *package);
 	
-	void protocol_recieve_active(package_t *package, package_t *last_package);
+	void protocol_recieve_active(package_t *package);
 
 	//==============================FUNÇÕES DE ARQUIVOS======================================
 

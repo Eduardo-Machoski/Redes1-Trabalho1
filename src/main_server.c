@@ -12,7 +12,7 @@ int main() {
 	char *treasure_path;
 	int treasures_remaining = TREASURES;
 
-	while(treasures_remaining > 1){
+	while(treasures_remaining > 0){
 
 		// Recebe um comando do cliente
 		command = server_recieve_command();

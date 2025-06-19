@@ -19,7 +19,7 @@ int main(){
 		switch(command_response){
 			
 			// Player andou para uma casa vazia
-			case OK:
+			case ACK:
 				
 				client_walk();
 
@@ -27,7 +27,9 @@ int main(){
 				break;
 
 			// Player andou para uma casa com tesouro
-			case (VIDEO || IMAGEM || TEXTO):
+			case (VIDEO):
+			case (IMAGEM):
+			case (TEXTO):
 				
 				// Cliente recebe o tesouro do servidor
 				client_recieve_treasure(command_response);
@@ -42,7 +44,7 @@ int main(){
 				break;
 
 			// Player nao se move
-			case ACK:
+			case OK:
 				client_print_board();
 				break;
 

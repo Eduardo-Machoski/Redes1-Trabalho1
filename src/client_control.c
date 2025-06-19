@@ -12,7 +12,6 @@ board g_board;					// Estado atual do tabuleiro
 char *Treasure_path;			// Path para o ultimo tesouro recebido
 
 package_t command_request; // Pacote com o comando enviado
-package_t last_package;		// Pacote com a ultima mensagem enviada
 package_t answer_package;	// Ultima resposta do servidor
 
 
@@ -112,19 +111,8 @@ uchar client_send_command_request(){
 	// Envia o command_request
 	protocol_send_package(&command_request, true);
 
-	//Atualiza o ultimo pacote enviado
-	last_package.size = command_request.size;
-	last_package.seq = command_request.seq;
-	last_package.type = command_request.type;
-	
-	for(int i = 0; i < 127; i++)
-		last_package.data[i] = command_request.data[i];
-	
-	for(int i = 0; i < 131; i++)
-		last_package.buffer[i] = command_request.buffer[i];
-
 	// Recebe a resposta do servidor
-	protocol_recieve_active(&answer_package, &last_package);
+	protocol_recieve_active(&answer_package);
 
 	return answer_package.type;
 }
