@@ -11,6 +11,7 @@ package_t last_package;			// Ultimo pacote enviado
 
 package_t recieved_package;	// Ultimo pacote recebido
 
+char *g_aux_string = "teste";
 
 treasure_t treasures[TREASURES];      // Vetor com os tesouros e suas informacoes
 
@@ -33,7 +34,7 @@ void local_build_send_package(uchar type, char *path){
 
 		// Envia o nome do arquivo alem do tipo dele
 		case TREASURE_FOUND:
-			send_package.type = type;
+			send_package.type = VIDEO;
 
 			// Tamanho padrao dos nomes de arquivos do jogo
 			send_package.size = 5;
@@ -106,7 +107,7 @@ void local_init_treasure(int index){
 
 	// Inicializa o resto do tesouro
 	treasures[index].found = false;
-	treasures[index].path = "colocar_path";
+	treasures[index].path = g_aux_string;
 }
 
 //===========================FUNCOES EXTERNAS=========================    ==========
@@ -205,7 +206,7 @@ char *server_walk(uchar command){
 	g_board.board[g_board.player_y][g_board.player_x] = '0';
 
 	// Player tentou andar para fora do tabuleiro
-	if(!walk_fail){
+	if(walk_fail){
 		local_build_send_package(OK, NULL);
 		return NULL;
 	}
