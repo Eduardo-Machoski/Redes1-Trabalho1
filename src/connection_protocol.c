@@ -12,12 +12,58 @@
 #include "connection_protocol.h"
  
 
-uchar g_expected_seq;   // Sequencia esperada da proxima mensagem a receber
-uchar g_current_seq;    // Sequencia do pacote atual
+uchar g_expected_seq;     // Sequencia esperada da proxima mensagem a receber
+uchar g_current_seq;      // Sequencia do pacote atual
 
-int g_socket;				// Variavel com o socket de comunicacao
+int g_socket;				  // Variavel com o socket de comunicacao
 
-package_t g_nack;       // Pacote nack
+package_t g_nack;         // Pacote nack
+package_t g_last_package; // Ultimo pacote enviado por esse computador (atualizado todo envio)
+
+void local_build_package(package_t *package);
+
+// Envia novamente o ultimo pacote (exceto NACK) enviado pelo computador
+void local_resend_package(){
+	#ifdef DEBUG
+	printf("local_resend_package\n");
+	#endif
+	send(g_socket, g_last_package.buffer, g_last_package.buffer_size, 0);
+}
+
+// Envia nack
+void local_send_nack(){
+	uchar buffer_size = 4 + g_nack.size;
+
+	g_nack.seq = g_current_seq;
+
+	// constroi o pacote
+	local_build_package(&g_nack);
+
+	// conta quantos bytes 0x88 e 0x81 tem na mensagem
+	for (int i=0; i<g_nack.size + 4; i++)
+		if ((g_nack.buffer[i] == 0x81) || (g_nack.buffer[i] == 0x88))
+			buffer_size++;
+
+	if (buffer_size < 14) buffer_size = 14;
+
+	uchar *aux = malloc(buffer_size);
+	if (!aux) exit(1);
+
+	// adiciona bytes 0xff depois de 0x88 e 0x81 e envia
+	int j=0;
+	for (int i=0; i < (4 + g_nack.size); i++){
+		aux[j] = g_nack.buffer[i];
+		if((g_nack.buffer[i] == 0x88) || (g_nack.buffer[i] == 0x81)){
+			j++;
+			aux[j] = 0xff;
+		}
+		j++;
+	}
+
+	send(g_socket, aux, buffer_size, 0);
+}
+
+
 
 // Incrementa seq (vai de 0 a 31 circular)                            
 void local_inc_seq(uchar *seq){                                                           
@@ -70,6 +116,11 @@ void protocol_init(char* interface_name) {
 	// Inicializa valores de controle
 	g_expected_seq = 0;
 	g_current_seq = 0;
+
+	// Inicializa o pacote NACK
+	g_nack.size = 0;
+	g_nack.type = NACK;
+	g_nack.seq = 0;
 }
 
 //
@@ -128,6 +179,16 @@ int protocol_send_package(package_t *package, bool inc){
 		}
 		j++;
 	}
+
+	// Salva o pacote como o ultimo pacote enviado
+	g_last_package.type = package->type;
+	g_last_package.size = package->size;
+	g_last_package.seq  = package->seq;
+	g_last_package.buffer_size = buffer_size;
+	for(int i = 0; i < package->size; i++)
+		g_last_package.data[i] = package->data[i];
+	for(int i = 0; i < buffer_size; i++)
+		g_last_package.buffer[i] = aux[i];
 
 	int status = send(g_socket, aux, buffer_size, 0); 
 
@@ -190,7 +251,7 @@ int local_recieve_package(package_t *package){
 // Verifica:
 	// Checksum
 	// Sequencia da mensagem
-void protocol_recieve_passive(package_t *package, package_t *last_package){
+void protocol_recieve_passive(package_t *package){
 
 	bool valid = false;
 
@@ -202,8 +263,7 @@ void protocol_recieve_passive(package_t *package, package_t *last_package){
 		// Verifica o checksum do pacote
 		if (package->buffer[3] != local_checksum(*package)){
 			// Erro checksum -> Envia nack e volta a esperar a mensagem
-			protocol_send_package(&g_nack, false);
-			local_inc_seq(&g_current_seq);
+			local_send_nack();
 			continue;
 		}
 
@@ -213,22 +273,22 @@ void protocol_recieve_passive(package_t *package, package_t *last_package){
 			printf("Recebido seq: %u : esperado: %u, Tipo: %u\n",package->seq, g_expected_seq, package->type);
 		#endif
 
-		// Sequencia correta -> sai do loop 
-        if(package->seq == g_expected_seq){
-            valid = true;
-
-            // Atualiza a sequencia de mensagem esperada
-            local_inc_seq(&g_expected_seq);
-        }else if(package->seq < g_expected_seq)     // Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
-            protocol_send_package(last_package, false);
-        else                                                // Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
-            printf("Tem que fazer");
+      if(package->seq < g_expected_seq){   	  // Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
+			local_resend_package();
+      	continue;
+		}else if (package->seq > g_expected_seq) // Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
+         printf("Tem que fazer");
 
 		// Se recebeu um nack envia a ultima mensagem novamente e continua no loop
-		if(valid && package->type == NACK){
-			valid = false;
-			protocol_send_package(last_package, false);
+		if(package->type == NACK){
+			local_resend_package();
+			continue;
 		}
+
+		// Obteve mensagem valida
+		valid = true;
+      // Atualiza a sequencia de mensagem esperada
+      local_inc_seq(&g_expected_seq);
 	}
 }
 
@@ -238,10 +298,9 @@ void protocol_recieve_passive(package_t *package, package_t *last_package){
 	// Checksum
 	// Sequencia
 // Contem timeout
-void protocol_recieve_active(package_t *package, package_t *last_package){ 
+void protocol_recieve_active(package_t *package){
 
 	bool valid = false;
-	bool check;
 
 	long long beggining;
 	struct timeval timeout;
@@ -255,56 +314,58 @@ void protocol_recieve_active(package_t *package, package_t *last_package){
 
 		do
 			if(local_recieve_package(package)){	
-				check = true;
 				timeoutMillis = 1000;			// volta o tempo de timeout original
 
 				// Verifica o checksum do pacote
 				if (package->buffer[3] != local_checksum(*package)){
 					// Erro checksum -> Envia nack e volta a esperar a mensagem
-					protocol_send_package(&g_nack, false);
-					local_inc_seq(&g_current_seq);
-					check = false;
+					local_send_nack();
+					continue;
 				}
 
-				if(check){
-					// Sucesso checksum -> Verifica a sequencia da mensagem recebida
+				// Sucesso checksum -> Verifica a sequencia da mensagem recebida
 
-					#ifdef DEBUG
-						printf("Recebido seq: %u : esperado: %u, Tipo: %u\n",package->seq, g_expected_seq, package->type);
-					#endif
+				#ifdef DEBUG
+					printf("Recebido seq: %u : esperado: %u, Tipo: %u\n",package->seq, g_expected_seq, package->type);
+				#endif
 
-					// Sequencia correta -> sai do loop 
-					if(package->seq == g_expected_seq)
+				if(package->seq < g_expected_seq){  		// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
+					local_resend_package();
+					continue;
+				} else if (package->seq > g_expected_seq)	// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
+					printf("Tem que fazer");
+
+
+				switch (package->type){
+					case NACK:
+						// Se recebeu um nack envia a ultima mensagem novamente e continua no loop
+						local_resend_package();
+						continue;
+					break;
+					
+					// Tipos validos para resposta de mensagens
+					case ACK:
+					case OK:
+					case VIDEO:
+					case IMAGEM:
+					case TEXTO:
 						valid = true;
-					else if(package->seq < g_expected_seq){  	// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
-						protocol_send_package(last_package, false);
 
-						// Reseta o timeout
-						timeoutMillis = 1000;
-						beggining = timestamp();
-					} else												// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
-						printf("Tem que fazer");
+						// Atualiza a sequencia de mensagem esperada
+						local_inc_seq(&g_expected_seq);
+					break;
 
-
-					// Atualiza a sequencia de mensagem esperada
-					local_inc_seq(&g_expected_seq);
-
-					// Se recebeu um nack envia a ultima mensagem novamente e continua no loop
-					if(valid && package->type == NACK){
-						valid = false;
-						protocol_send_package(last_package, false);
-
-						// Reseta o timeout
-						timeoutMillis = 1000;
-						beggining = timestamp();
-					}
+					default:
+						// Fazer envio de erro
 				}
+
+
 			}
-		while(timestamp() - beggining <= timeoutMillis);
+		while(!valid && (timestamp() - beggining <= timeoutMillis));
 
 		// Timeout estourado
 		if(!valid)
-			protocol_send_package(last_package, false);
+			local_resend_package();
 
 		// recuo exponencial do tempo de timeout
 		timeoutMillis = timeoutMillis << 1;

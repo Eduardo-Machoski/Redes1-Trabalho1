@@ -7,11 +7,10 @@
 board g_board;						// Estado atual do tabuleiro
 
 package_t send_package;			// Pacote a ser enviado 
-package_t last_package;			// Ultimo pacote enviado 
 
 package_t recieved_package;	// Ultimo pacote recebido
 
-char *g_aux_string = "teste";
+char *g_aux_string = "TESTE";
 
 treasure_t treasures[TREASURES];      // Vetor com os tesouros e suas informacoes
 
@@ -107,7 +106,11 @@ void local_init_treasure(int index){
 
 	// Inicializa o resto do tesouro
 	treasures[index].found = false;
+
+	treasures[index].path = g_aux_string; 
+
 	treasures[index].path = g_aux_string;
+
 }
 
 //===========================FUNCOES EXTERNAS=========================    ==========
@@ -147,7 +150,7 @@ void server_init(){
 // Retorno:
 	// Tipo do pacote recebido
 uchar server_recieve_command(){
-	protocol_recieve_passive(&recieved_package, &last_package);
+	protocol_recieve_passive(&recieved_package);
 
 	return recieved_package.type;
 }
