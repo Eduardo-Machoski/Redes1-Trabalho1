@@ -107,8 +107,10 @@ void local_init_treasure(int index){
 	// Inicializa o resto do tesouro
 	treasures[index].found = false;
 
-
 	treasures[index].path = g_aux_string; 
+
+	treasures[index].path = g_aux_string;
+
 }
 
 //===========================FUNCOES EXTERNAS=========================    ==========
