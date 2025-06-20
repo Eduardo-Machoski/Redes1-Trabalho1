@@ -24,6 +24,9 @@ void local_build_package(package_t *package);
 
 // Envia novamente o ultimo pacote (exceto NACK) enviado pelo computador
 void local_resend_package(){
+	#ifdef DEBUG
+	printf("local_resend_package\n");
+	#endif
 	send(g_socket, g_last_package.buffer, g_last_package.buffer_size, 0);
 }
 

@@ -33,7 +33,7 @@ void local_build_send_package(uchar type, char *path){
 
 		// Envia o nome do arquivo alem do tipo dele
 		case TREASURE_FOUND:
-			send_package.type = type;
+			send_package.type = VIDEO;
 
 			// Tamanho padrao dos nomes de arquivos do jogo
 			send_package.size = 5;
