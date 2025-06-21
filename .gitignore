@@ -1,0 +1,7 @@
+# Ignorar executáveis na pasta principal
+/client
+/server
+
+# Ignorar todos os arquivos .o dentro da pasta tmp
+/tmp/*.o
+
