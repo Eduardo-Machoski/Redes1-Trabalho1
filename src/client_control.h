@@ -33,7 +33,8 @@
    uchar client_send_command_request();
 
 	// Anda no tabuleiro
-   void client_walk();
+		// Marca a casa atual como X se tinha um tesouro, se nao marca com um espaco
+   void client_walk(bool *treasure);
 
 
 	// Recebe o tesouro do servidor na seginte ordem:

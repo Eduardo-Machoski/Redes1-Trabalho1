@@ -11,7 +11,10 @@ int main(){
 
 	uchar command_response;
 
-	while(1 == 1){
+	int treasures_left = TREASURES;
+	bool treasure_found = false;
+
+	while(treasures_left > 0){
 		client_get_valid_command();
 
 		command_response = client_send_command_request();
@@ -21,7 +24,7 @@ int main(){
 			// Player andou para uma casa vazia
 			case ACK:
 				
-				client_walk();
+				client_walk(&treasure_found);
 
 				client_print_board();
 				break;
@@ -35,12 +38,16 @@ int main(){
 				client_recieve_treasure(command_response);
 
 				// Anda para a casa com tesouro
-				client_walk();
+				client_walk(&treasure_found);
+				
+				// Na proxima vez que o player andar a casa será marcada como tesouro
+				treasure_found = true;
 				client_print_board();
 
 				// Abre o tesouro conforme o seu tipo
 				client_open_treasure(command_response);
 
+				treasures_left--;
 				break;
 
 			// Player nao se move
