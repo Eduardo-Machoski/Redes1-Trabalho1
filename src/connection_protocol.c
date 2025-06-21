@@ -310,7 +310,7 @@ void protocol_recieve_active(package_t *package){
 		beggining = timestamp();
 		timeout.tv_sec = timeoutMillis/1000;
 		timeout.tv_usec = (timeoutMillis%1000) * 1000;
-   	setsockopt(g_socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
+   		setsockopt(g_socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
 
 		do
 			if(local_recieve_package(package)){	

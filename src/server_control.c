@@ -4,15 +4,17 @@
 
 //=====================VARIAVEIS GLOBAIS==============================    ==
 
-board g_board;						// Estado atual do tabuleiro
+board g_board;								// Estado atual do tabuleiro
 
-package_t send_package;			// Pacote a ser enviado 
+package_t send_package;						// Pacote a ser enviado 
 
-package_t recieved_package;	// Ultimo pacote recebido
+package_t recieved_package;					// Ultimo pacote recebido
 
 char *g_aux_string = "TESTE";
 
-treasure_t treasures[TREASURES];      // Vetor com os tesouros e suas informacoes
+treasure_t treasures[TREASURES];    		// Vetor com os tesouros e suas informacoes
+
+char *extensions[3] = {"jpg", "mp4", "txt"};// Vetor com toda as extensões possiveis
 
 //===========================FUNCOES INTERNAS===================================
 
@@ -81,6 +83,23 @@ char *local_treasure_found(){
 	return NULL;
 }
 
+// Descobre o caminho para cada tesouro 
+int local_get_file_path(int index, char *s) {
+    FILE *file = NULL;
+
+    for (int i = 0; i < 3; i++) {
+        snprintf(s, 14, "objetos/%d.%s", index, extensions[i]);
+		file = fopen(s, "r");
+        if (file != NULL) {
+            fclose(file);
+            return 1;  // Encontrou
+        }
+    }
+
+    s[0] = '\0';  // Não encontrou
+    return 0;
+}
+
 // Cria um tesouro em uma posicao vazia do tabuleiro
 void local_init_treasure(int index){
 	bool valid;
@@ -107,10 +126,9 @@ void local_init_treasure(int index){
 	// Inicializa o resto do tesouro
 	treasures[index].found = false;
 
-	treasures[index].path = g_aux_string; 
-
-	treasures[index].path = g_aux_string;
-
+	// Acha o caminho do tesouro
+	if (!local_get_file_path(index + 1, treasures[index].path))
+		exit(1);
 }
 
 //===========================FUNCOES EXTERNAS=========================    ==========

@@ -51,10 +51,4 @@
 	
 	void protocol_recieve_active(package_t *package);
 
-	//==============================FUNÇÕES DE ARQUIVOS======================================
-
-	int protocol_recieve_archive(int socket, char *archive_name);
-
-	int protocol_send_archive(int socket, char *archive_path);
-
 #endif

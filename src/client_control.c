@@ -150,6 +150,7 @@ void client_walk(){
 	// DADOS - Repete recepcao de dados
 	// FIM_FILE - Fim da recepcao de dados e do tesouro
 void client_recieve_treasure(uchar type){
+	
 }
 
 //======================================================================
