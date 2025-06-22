@@ -1,22 +1,25 @@
 #include "server_control.h"
 
 #include <string.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
 
 //=====================VARIAVEIS GLOBAIS==============================    ==
 
-board g_board;						// Estado atual do tabuleiro
+board g_board;								// Estado atual do tabuleiro
 
-package_t send_package;			// Pacote a ser enviado 
+package_t send_package;						// Pacote a ser enviado 
 
-package_t recieved_package;	// Ultimo pacote recebido
+package_t recieved_package;					// Ultimo pacote recebido
 
-char *g_aux_string = "TESTE";
+treasure_t treasures[TREASURES];    		// Vetor com os tesouros e suas informacoes
 
-treasure_t treasures[TREASURES];      // Vetor com os tesouros e suas informacoes
+char *extensions[3] = {"jpg", "mp4", "txt"};// Vetor com toda as extensões possiveis
 
 //===========================FUNCOES INTERNAS===================================
 
-void local_build_send_package(uchar type, char *path){
+void local_build_send_package(uchar type, char *data){
 	#ifdef DEBUG
 	printf("Local_build_send_package build: %u\n", type);
 	#endif
@@ -33,17 +36,16 @@ void local_build_send_package(uchar type, char *path){
 
 		// Envia o nome do arquivo alem do tipo dele
 		case TREASURE_FOUND:
-			send_package.type = VIDEO;
+			if (!strcmp(data+10, "jpg")) send_package.type = IMAGEM;
+			else if (!strcmp(data+10, "mp4")) send_package.type = VIDEO;
+			else if (!strcmp(data+10, "txt")) send_package.type = TEXTO;
 
 			// Tamanho padrao dos nomes de arquivos do jogo
-			send_package.size = 5;
-			
-			// Inicio do nome do arquivo do tesouro
-			char *aux = &path[strlen(path) - 5];
+			send_package.size = 17;
 
 			// Coloca o nome do tesouro no send_package
-			for(int i = 0; i < 5; i++)
-				send_package.data[i] = aux[i];
+			for(int i = 0; i < 17; i++)
+				send_package.data[i] = data[i];
 
 		break;
 
@@ -81,6 +83,23 @@ char *local_treasure_found(){
 	return NULL;
 }
 
+// Descobre o caminho para cada tesouro 
+int local_get_file_path(int index, char *s) {
+    FILE *file = NULL;
+
+    for (int i = 0; i < 3; i++) {
+        snprintf(s, 14, "objetos/%d.%s", index, extensions[i]);
+		file = fopen(s, "r");
+        if (file != NULL) {
+            fclose(file);
+            return 1;  // Encontrou
+        }
+    }
+
+    s[0] = '\0';  // Não encontrou
+    return 0;
+}
+
 // Cria um tesouro em uma posicao vazia do tabuleiro
 void local_init_treasure(int index){
 	bool valid;
@@ -107,10 +126,9 @@ void local_init_treasure(int index){
 	// Inicializa o resto do tesouro
 	treasures[index].found = false;
 
-	treasures[index].path = g_aux_string; 
-
-	treasures[index].path = g_aux_string;
-
+	// Acha o caminho do tesouro
+	if (!local_get_file_path(index + 1, treasures[index].path))
+		exit(1);
 }
 
 //===========================FUNCOES EXTERNAS=========================    ==========
@@ -240,8 +258,55 @@ void server_print_seq_events(){
 
 }
 
-// Envia ao cliente a resposta montada anteriormente
+// Envia arquivo
+void local_send_file(char *path){
+	struct stat st;
+
+	FILE *file = fopen(path, "r");
+
+	// Espera ACK
+	protocol_recieve_active(&recieved_package);
+
+	// Descobre informações do arquivo
+	stat(path, &st);
+
+	// Monta tamanho como unsigned e coloca em 8 bytes de dados
+	uint64_t size = (uint64_t) st.st_size;
+	for (int i=0; i<8; i++)
+		send_package.data[i] = (size >> (56 - i * 8)) & 0xFF;
+	send_package.size = 8;
+	send_package.type = TAMANHO;
+
+	// Envia tamanho  e espera ACK ou ERRO
+	protocol_send_package(&send_package, true);
+	protocol_recieve_active(&recieved_package);
+
+	// Caso receba erro
+	if (recieved_package.type == ERRO){
+		return;
+	}
+
+	// Envia arquivo
+	size_t bytes_read;
+	while ((bytes_read = fread(send_package.data, 1, 127, file)) > 0){
+		send_package.size = bytes_read;
+		send_package.type = DADOS;
+		protocol_send_package(&send_package, true);
+		protocol_recieve_active(&recieved_package);
+	}
+
+	// Envia FIM_FILE
+	send_package.size = 0;
+	send_package.type = FIM_FILE;
+	protocol_send_package(&send_package, true);
+}
+
+// Envia resposta ao cliente
 void server_send_answer(char *path){
-	//FAZER muita coisa ainda
-	protocol_send_package(&send_package, true);	
+
+	// Manda ultimo pacote montado
+	protocol_send_package(&send_package, true);
+
+	// Manda arquivo
+	if (path) local_send_file(path);
 }

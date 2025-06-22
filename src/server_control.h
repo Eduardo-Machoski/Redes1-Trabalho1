@@ -13,7 +13,7 @@
 typedef struct treasure_t {
 	unsigned int x;
 	unsigned int y;
-	char *path;
+	char path[14];
 	bool found;
 } treasure_t;
 
