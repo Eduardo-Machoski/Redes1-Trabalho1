@@ -259,48 +259,54 @@ void server_print_seq_events(){
 }
 
 // Envia arquivo
-int local_send_file(char *path){
+void local_send_file(char *path){
 	struct stat st;
 
 	FILE *file = fopen(path, "r");
 
-	// Envia VIDEO/IMAGEM/TEXTO até receber ack
+	// Espera ACK
 	protocol_recieve_active(&recieved_package);
-	while(recieved_package.type != ACK){
-		protocol_send_package(&send_package, false);
-		protocol_recieve_active(&recieved_package);
-	}
 
 	// Descobre informações do arquivo
 	stat(path, &st);
 
-	// Caso arquivo não seja regular, manda erro
-	if(!S_ISREG(st.st_mode)){
+	// Monta tamanho como unsigned e coloca em 8 bytes de dados
+	uint64_t size = (uint64_t) st.st_size;
+	for (int i=0; i<8; i++)
+		send_package.data[i] = (size >> (56 - i * 8)) & 0xFF;
+	send_package.size = 8;
+	send_package.type = TAMANHO;
 
+	// Envia tamanho  e espera ACK ou ERRO
+	protocol_send_package(&send_package, true);
+	protocol_recieve_active(&recieved_package);
+
+	// Caso receba erro
+	if (recieved_package.type == ERRO){
+		return;
 	}
-	// Manda tamanho
-	else{
-		// Monta tamanho como unsigned e coloca em 8 bytes de dados
-		uint64_t size = (uint64_t) st.st_size;
-		for (int i=0; i<8; i++)
-			send_package.data[i] = (size >> (56 - i * 8)) & 0xFF;
-		send_package.size = 8;
-		send_package.type = TAMANHO;
 
-		// Envia e espera ACK ou ERRO
+	// Envia arquivo
+	size_t bytes_read;
+	while ((bytes_read = fread(send_package.data, 1, 127, file)) > 0){
+		send_package.size = bytes_read;
+		send_package.type = DADOS;
 		protocol_send_package(&send_package, true);
-		//protocol_recieve_active(&recieved_package);
+		protocol_recieve_active(&recieved_package);
 	}
+
+	// Envia FIM_FILE
+	send_package.size = 0;
+	send_package.type = FIM_FILE;
+	protocol_send_package(&send_package, true);
 }
 
 // Envia resposta ao cliente
 void server_send_answer(char *path){
 
-	int status;
-	
 	// Manda ultimo pacote montado
 	protocol_send_package(&send_package, true);
 
 	// Manda arquivo
-	if (path) status = local_send_file(path);
+	if (path) local_send_file(path);
 }

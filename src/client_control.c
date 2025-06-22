@@ -5,6 +5,9 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <stdint.h>
+#include <sys/statvfs.h>
+#include <unistd.h>
+#include <string.h>
 
 //=====================VARIAVEIS GLOBAIS================================
 
@@ -154,7 +157,16 @@ void client_walk(){
 // Retorna o caminho para o tesouro caso tenha sido baixado corretamente
 // Retorna NULL caso contrario
 char *client_recieve_treasure(uchar type){
-	char *path = recieved_package.data;
+	// Copia o caminho do arquivo para path
+	char *path = malloc(recieved_package.size + 1);
+	if (!path) {
+		perror("malloc");
+		return NULL;
+	}
+	memcpy(path, recieved_package.data, recieved_package.size);
+	path[recieved_package.size] = '\0';
+
+	struct statvfs st;
 
 	printf("TESOURO ENCONTRADO\n");
 
@@ -186,6 +198,47 @@ char *client_recieve_treasure(uchar type){
 	#ifdef DEBUG
 		printf("tamanho do arquivo: %lu\n", size);
 	#endif
+
+	// Verifica espaço no diretorio objetos
+	statvfs("objetos", &st);
+	send_package.type = ACK;
+	send_package.size = 0;
+	if ((uint64_t)st.f_bsize * st.f_bavail < size + 100 * 1024 * 1024){		// Tolerancia de 100MB
+		send_package.type = ERRO;
+		printf("ESPAÇO INSUFICIENTE EM DISCO\n");
+	}
+	// Verifica se tem permissão de escrita no diretorio objetos
+	if (access("objetos", W_OK) != 0){
+		send_package.type = ERRO;
+		printf("SEM PERMISSÃO DE ESCRITA NO DIRETORIO\n");
+	}
+	protocol_send_package(&send_package, true);
+
+	// Caso ERRO, encerra função
+	if (send_package.type == ERRO){
+		free(path);
+		return NULL;
+	}
+
+	FILE *file = fopen(path, "wb");
+
+	printf("BAIXANDO ARQUIVO\n");
+
+	// Espera DADOS
+	protocol_recieve_passive(&recieved_package);
+	while(recieved_package.type != FIM_FILE){
+		// Escreve no arquivo
+		for (size_t i=0; i<recieved_package.size; i++)
+			fputc(recieved_package.data[i], file);
+
+		protocol_send_package(&send_package, true);
+		protocol_recieve_passive(&recieved_package);
+	}
+	
+	printf("ARQUIVO BAIXADO\n");
+	
+	fclose(file);
+	free(path);
 
 	return path;
 }
