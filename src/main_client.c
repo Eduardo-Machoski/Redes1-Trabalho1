@@ -41,8 +41,11 @@ int main(){
 				// Cliente recebe o tesouro do servidor
 				path = client_recieve_treasure(command_response);
 
-				client_open_treasure(command_response);
-
+				if (path){
+					client_open_treasure(command_response, path);
+					free(path);
+				}
+	
 				break;
 
 			// Player nao se move

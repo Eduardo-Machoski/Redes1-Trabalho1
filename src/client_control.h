@@ -48,6 +48,6 @@
 	// Abre o tesouro com base em:
 		//type : tipo do tesouro
 		//Treasure_path : caminho para o tesouro recebido por ultimo
-	void client_open_treasure(uchar type);
+	void client_open_treasure(uchar type, char *path);
 
 #endif

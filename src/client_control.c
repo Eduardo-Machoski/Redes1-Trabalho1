@@ -238,7 +238,6 @@ char *client_recieve_treasure(uchar type){
 	printf("ARQUIVO BAIXADO\n");
 	
 	fclose(file);
-	free(path);
 
 	return path;
 }
@@ -248,11 +247,18 @@ char *client_recieve_treasure(uchar type){
 // Abre o tesouro com base em:
 	//type : tipo do tesouro
 	//Treasure_path : caminho para o tesouro recebido por ultimo
-void client_open_treasure(uchar type){
+void client_open_treasure(uchar type, char *path){
+	// não existe arquivo
+	if (!path) return;
+
+	char command[256];
+
 	switch (type){
 		case VIDEO:
+			snprintf(command, sizeof(command), "xdg-open \"%s\"", path);
 			break;
 		case TEXTO:
+			snprintf(command, sizeof(command), "xdg-open \"%s\"", path);
 			break;
 		case IMAGEM:
 			break;
@@ -261,4 +267,6 @@ void client_open_treasure(uchar type){
 			exit(1);
 			break;
 	}
+
+	system(command);
 }
