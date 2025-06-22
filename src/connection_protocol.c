@@ -350,6 +350,7 @@ void protocol_recieve_active(package_t *package){
 					case VIDEO:
 					case IMAGEM:
 					case TEXTO:
+					case ERRO:
 						valid = true;
 
 						// Atualiza a sequencia de mensagem esperada

@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <stdint.h>
 
 //=====================VARIAVEIS GLOBAIS================================
 
@@ -11,8 +12,8 @@ board g_board;					// Estado atual do tabuleiro
 
 char *Treasure_path;			// Path para o ultimo tesouro recebido
 
-package_t command_request; 		// Pacote com o comando enviado
-package_t answer_package;		// Ultima resposta do servidor
+package_t send_package; 		// Pacote de envio 
+package_t recieved_package;		// Pacote de recebimento
 
 
 
@@ -38,7 +39,7 @@ void client_init_game(){
 	g_board.player_x = 0;
 	g_board.player_y = 0;
 
-	command_request.size = 0;
+	send_package.size = 0;
 
 	// Configura a conexao com o servidor
 	 protocol_init(PATH_INTERFACE);
@@ -64,7 +65,7 @@ void client_print_board(){
 	// - 'S', 's'
 	// - 'D', 'd'
 	// - 'W', 'w'
-// Monta o command_request com base no comando
+// Monta o send_package com base no comando
 void client_get_valid_command(){
 	uchar c = '\0';
 
@@ -75,16 +76,16 @@ void client_get_valid_command(){
 
    switch (c){
       case 'A':
-			command_request.type = ESQUERDA;
+			send_package.type = ESQUERDA;
          break;
       case 'S':
-			command_request.type = BAIXO;
+			send_package.type = BAIXO;
          break;
       case 'D':
-			command_request.type = DIREITA;
+			send_package.type = DIREITA;
          break;
       case 'W':
-			command_request.type = CIMA;
+			send_package.type = CIMA;
          break;
       default:
 			perror("Erro tipo comando!");
@@ -99,7 +100,7 @@ void client_get_valid_command(){
 
 //======================================================================
 
-// Envia o command_request ao servidor
+// Envia o send_package ao servidor
 // Recebe a resposta do servidor
 // Caso encontre um tesouro recebe o tesouro e salva seu path em Treasure_path
 // Respostas:
@@ -109,12 +110,12 @@ void client_get_valid_command(){
 uchar client_send_command_request(){
 
 	// Envia o command_request
-	protocol_send_package(&command_request, true);
+	protocol_send_package(&send_package, true);
 
 	// Recebe a resposta do servidor
-	protocol_recieve_active(&answer_package);
+	protocol_recieve_active(&recieved_package);
 
-	return answer_package.type;
+	return recieved_package.type;
 }
 
 //======================================================================
@@ -126,7 +127,7 @@ void client_walk(){
    g_board.board[g_board.player_y][g_board.player_x] = ' ';
 
 	// Move o player com base no ultimo comando enviado ao servidor
-   switch (command_request.type){
+   switch (send_package.type){
       case CIMA:
          g_board.player_y += 1;
          break;
@@ -153,11 +154,39 @@ void client_walk(){
 // Retorna o caminho para o tesouro caso tenha sido baixado corretamente
 // Retorna NULL caso contrario
 char *client_recieve_treasure(uchar type){
-	char *path = answer_package.data;
+	char *path = recieved_package.data;
 
 	printf("TESOURO ENCONTRADO\n");
 
+	#ifdef DEBUG
+		printf("path: %s\n", path);
+	#endif
+
+	// Fala que entrou na função de receber arquivo
+	send_package.type = ACK;
+	send_package.size = 0;
+
+	// Manda ACK
+	protocol_send_package(&send_package, true);
 	
+	// Espera TAMANHO
+	protocol_recieve_passive(&recieved_package);
+	while(recieved_package.type != TAMANHO){
+		protocol_send_package(&send_package, false);
+		protocol_recieve_passive(&recieved_package);
+	}
+
+	// Guarda tamanho
+	uint64_t size = 0;
+
+    for (int i = 0; i < 8; i++) {
+        size |= ((uint64_t)recieved_package.data[i]) << (56 - i * 8);
+    }
+
+	#ifdef DEBUG
+		printf("tamanho do arquivo: %lu\n", size);
+	#endif
+
 	return path;
 }
 

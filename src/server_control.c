@@ -1,6 +1,9 @@
 #include "server_control.h"
 
 #include <string.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
 
 //=====================VARIAVEIS GLOBAIS==============================    ==
 
@@ -257,9 +260,37 @@ void server_print_seq_events(){
 
 // Envia arquivo
 int local_send_file(char *path){
+	struct stat st;
 
-	FILE *file = fopen(path, "w");
+	FILE *file = fopen(path, "r");
 
+	// Envia VIDEO/IMAGEM/TEXTO até receber ack
+	protocol_recieve_active(&recieved_package);
+	while(recieved_package.type != ACK){
+		protocol_send_package(&send_package, false);
+		protocol_recieve_active(&recieved_package);
+	}
+
+	// Descobre informações do arquivo
+	stat(path, &st);
+
+	// Caso arquivo não seja regular, manda erro
+	if(!S_ISREG(st.st_mode)){
+
+	}
+	// Manda tamanho
+	else{
+		// Monta tamanho como unsigned e coloca em 8 bytes de dados
+		uint64_t size = (uint64_t) st.st_size;
+		for (int i=0; i<8; i++)
+			send_package.data[i] = (size >> (56 - i * 8)) & 0xFF;
+		send_package.size = 8;
+		send_package.type = TAMANHO;
+
+		// Envia e espera ACK ou ERRO
+		protocol_send_package(&send_package, true);
+		//protocol_recieve_active(&recieved_package);
+	}
 }
 
 // Envia resposta ao cliente
