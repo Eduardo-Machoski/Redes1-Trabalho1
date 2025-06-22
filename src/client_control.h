@@ -40,7 +40,10 @@
 		// TAMANHO - Verifica se ha espaco em disco suficiente
 		// DADOS - Repete recepcao de dados
 		// FIM_FILE - Fim da recepcao de dados e do tesouro
-	void client_recieve_treasure(uchar type);
+	// Retorna 
+		// path, caso consiga baixar o arquivo
+		// NULL, caso contrario
+	char* client_recieve_treasure(uchar type);
 
 	// Abre o tesouro com base em:
 		//type : tipo do tesouro

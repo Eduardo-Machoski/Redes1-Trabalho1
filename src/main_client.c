@@ -31,14 +31,18 @@ int main(){
 			case IMAGEM:
 			case TEXTO:
 				
-				// Cliente recebe o tesouro do servidor
-				client_recieve_treasure(command_response);
+				char *path;
 
 				// Anda para a casa com tesouro
 				client_walk();
 				client_print_board();
 
 				// Abre o tesouro conforme o seu tipo
+				// Cliente recebe o tesouro do servidor
+				path = client_recieve_treasure(command_response);
+
+				printf("%s\n", path);
+
 				client_open_treasure(command_response);
 
 				break;

@@ -11,8 +11,8 @@ board g_board;					// Estado atual do tabuleiro
 
 char *Treasure_path;			// Path para o ultimo tesouro recebido
 
-package_t command_request; // Pacote com o comando enviado
-package_t answer_package;	// Ultima resposta do servidor
+package_t command_request; 		// Pacote com o comando enviado
+package_t answer_package;		// Ultima resposta do servidor
 
 
 
@@ -149,8 +149,16 @@ void client_walk(){
 	// TAMANHO - Verifica se ha espaco em disco suficiente
 	// DADOS - Repete recepcao de dados
 	// FIM_FILE - Fim da recepcao de dados e do tesouro
-void client_recieve_treasure(uchar type){
+
+// Retorna o caminho para o tesouro caso tenha sido baixado corretamente
+// Retorna NULL caso contrario
+char *client_recieve_treasure(uchar type){
+	char *path = answer_package.data;
+
+	printf("TESOURO ENCONTRADO\n");
+
 	
+	return path;
 }
 
 //======================================================================

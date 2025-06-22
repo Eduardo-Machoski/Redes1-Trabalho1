@@ -273,11 +273,11 @@ void protocol_recieve_passive(package_t *package){
 			printf("Recebido seq: %u : esperado: %u, Tipo: %u\n",package->seq, g_expected_seq, package->type);
 		#endif
 
-      if(package->seq < g_expected_seq){   	  // Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
+      	if(package->seq < g_expected_seq){   	  // Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
 			local_resend_package();
-      	continue;
+      		continue;
 		}else if (package->seq > g_expected_seq) // Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
-         printf("Tem que fazer");
+         	printf("Tem que fazer");
 
 		// Se recebeu um nack envia a ultima mensagem novamente e continua no loop
 		if(package->type == NACK){
@@ -287,8 +287,9 @@ void protocol_recieve_passive(package_t *package){
 
 		// Obteve mensagem valida
 		valid = true;
-      // Atualiza a sequencia de mensagem esperada
-      local_inc_seq(&g_expected_seq);
+      
+	  	// Atualiza a sequencia de mensagem esperada
+      	local_inc_seq(&g_expected_seq);
 	}
 }
 
@@ -354,6 +355,7 @@ void protocol_recieve_active(package_t *package){
 						// Atualiza a sequencia de mensagem esperada
 						local_inc_seq(&g_expected_seq);
 					break;
+
 
 					default:
 						// Fazer envio de erro

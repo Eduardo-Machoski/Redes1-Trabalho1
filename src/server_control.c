@@ -10,15 +10,13 @@ package_t send_package;						// Pacote a ser enviado
 
 package_t recieved_package;					// Ultimo pacote recebido
 
-char *g_aux_string = "TESTE";
-
 treasure_t treasures[TREASURES];    		// Vetor com os tesouros e suas informacoes
 
 char *extensions[3] = {"jpg", "mp4", "txt"};// Vetor com toda as extensões possiveis
 
 //===========================FUNCOES INTERNAS===================================
 
-void local_build_send_package(uchar type, char *path){
+void local_build_send_package(uchar type, char *data){
 	#ifdef DEBUG
 	printf("Local_build_send_package build: %u\n", type);
 	#endif
@@ -35,17 +33,16 @@ void local_build_send_package(uchar type, char *path){
 
 		// Envia o nome do arquivo alem do tipo dele
 		case TREASURE_FOUND:
-			send_package.type = VIDEO;
+			if (!strcmp(data+10, "jpg")) send_package.type = IMAGEM;
+			else if (!strcmp(data+10, "mp4")) send_package.type = VIDEO;
+			else if (!strcmp(data+10, "txt")) send_package.type = TEXTO;
 
 			// Tamanho padrao dos nomes de arquivos do jogo
-			send_package.size = 5;
-			
-			// Inicio do nome do arquivo do tesouro
-			char *aux = &path[strlen(path) - 5];
+			send_package.size = 17;
 
 			// Coloca o nome do tesouro no send_package
-			for(int i = 0; i < 5; i++)
-				send_package.data[i] = aux[i];
+			for(int i = 0; i < 17; i++)
+				send_package.data[i] = data[i];
 
 		break;
 
@@ -258,8 +255,21 @@ void server_print_seq_events(){
 
 }
 
-// Envia ao cliente a resposta montada anteriormente
+// Envia arquivo
+int local_send_file(char *path){
+
+	FILE *file = fopen(path, "w");
+
+}
+
+// Envia resposta ao cliente
 void server_send_answer(char *path){
-	//FAZER muita coisa ainda
-	protocol_send_package(&send_package, true);	
+
+	int status;
+	
+	// Manda ultimo pacote montado
+	protocol_send_package(&send_package, true);
+
+	// Manda arquivo
+	if (path) status = local_send_file(path);
 }
