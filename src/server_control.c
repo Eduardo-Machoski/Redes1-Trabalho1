@@ -9,15 +9,56 @@
 
 board g_board;								// Estado atual do tabuleiro
 
-package_t send_package;						// Pacote a ser enviado 
+package_t send_package;					// Pacote a ser enviado 
 
-package_t recieved_package;					// Ultimo pacote recebido
+package_t received_package;			// Ultimo pacote recebido
 
-treasure_t treasures[TREASURES];    		// Vetor com os tesouros e suas informacoes
+treasure_t treasures[TREASURES];    // Vetor com os tesouros e suas informacoes
 
 char *extensions[3] = {"jpg", "mp4", "txt"};// Vetor com toda as extensões possiveis
 
+uchar plays[1024];						// Vetor com a sequencia de jogadas do player
+int num_plays;								//	Numero de jogadas que o player realizou
+
 //===========================FUNCOES INTERNAS===================================
+
+// Salva uma jogada do player na ultima posicao
+void local_save_play(uchar type){
+	plays[num_plays] = type;
+	num_plays++;
+}
+
+// Imprime todas as jogadas do player em sequencia
+void local_print_play_sequence(){
+	for(int i = 0; i < num_plays ; i++){
+		switch (plays[i]){
+			case ESQUERDA:
+				printf("a");
+				break;
+				
+			case DIREITA:
+				printf("d");
+				break;
+				
+			case CIMA:
+				printf("w");
+				break;
+				
+			case BAIXO:
+				printf("s");
+				break;
+				
+			default:
+				break;
+		}
+
+		if(i == num_plays - 1)
+			printf("\n");
+		else
+			printf(" ");
+	}
+	printf("\n");
+}
 
 void local_build_send_package(uchar type, char *data){
 	#ifdef DEBUG
@@ -56,6 +97,13 @@ void local_build_send_package(uchar type, char *data){
 
 			// Tem que fazer o sistema de arquivos e dai atualizar aqui
 			send_package.data[0] = '1';
+			send_package.size = 1;
+		break;
+
+		case ERRO_CONEXAO:
+			send_package.type = type;
+
+			send_package.data[0] = ERRO_TIPO;
 			send_package.size = 1;
 		break;
 
@@ -127,8 +175,10 @@ void local_init_treasure(int index){
 	treasures[index].found = false;
 
 	// Acha o caminho do tesouro
-	if (!local_get_file_path(index + 1, treasures[index].path))
+	if (!local_get_file_path(index + 1, treasures[index].path)){
+		printf("Devem ter tesouros nomeados de 1 a 8 com extensão .txt, .jpg ou .mp4 no diretório objetos\n");
 		exit(1);
+	}
 }
 
 //===========================FUNCOES EXTERNAS=========================    ==========
@@ -151,6 +201,9 @@ void server_init(){
 	g_board.player_x = 0;
 	g_board.player_y = 0;
 
+	// Numero de jogadas inicial do player
+	num_plays = 0;
+
 	// Inicializa os tesouros
 	for(int i = 0; i < TREASURES; i++){
 		local_init_treasure(i);
@@ -161,16 +214,32 @@ void server_init(){
 	
 	// Configura o socket de comunicacao
 	protocol_init(PATH_INTERFACE);
-
 }
 
 // Espera passivamente por um pacoteenviado do cliente
 // Retorno:
 	// Tipo do pacote recebido
-uchar server_recieve_command(){
-	protocol_recieve_passive(&recieved_package);
+uchar server_receive_command(){
+	protocol_receive_passive(&received_package);
 
-	return recieved_package.type;
+	switch (received_package.type){
+		// Valores validos
+		case ESQUERDA:
+		case DIREITA:
+		case CIMA:
+		case BAIXO:
+			local_save_play(received_package.type);
+			local_print_play_sequence();
+			break;
+
+		// Tipo invalido
+		default:
+			local_build_send_package(ERRO_CONEXAO, NULL);
+			exit(ERRO_TIPO);
+			break;
+	}
+
+	return received_package.type;
 }
 
 // Recebe um commando e tenta andar no board
@@ -251,6 +320,7 @@ void server_print_board(){
          printf("%c", g_board.board[i][j]);
       printf("\n");
    }
+   printf("\n");
 }
 
 // Imprime a sequencia de passos validos do cliente
@@ -265,7 +335,7 @@ void local_send_file(char *path){
 	FILE *file = fopen(path, "r");
 
 	// Espera ACK
-	protocol_recieve_active(&recieved_package);
+	protocol_receive_active(&received_package);
 
 	// Descobre informações do arquivo
 	stat(path, &st);
@@ -279,10 +349,10 @@ void local_send_file(char *path){
 
 	// Envia tamanho  e espera ACK ou ERRO
 	protocol_send_package(&send_package, true);
-	protocol_recieve_active(&recieved_package);
+	protocol_receive_active(&received_package);
 
 	// Caso receba erro
-	if (recieved_package.type == ERRO){
+	if (received_package.type == ERRO){
 		return;
 	}
 
@@ -292,7 +362,7 @@ void local_send_file(char *path){
 		send_package.size = bytes_read;
 		send_package.type = DADOS;
 		protocol_send_package(&send_package, true);
-		protocol_recieve_active(&recieved_package);
+		protocol_receive_active(&received_package);
 	}
 
 	// Envia FIM_FILE

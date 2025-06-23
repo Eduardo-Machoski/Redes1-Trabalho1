@@ -33,7 +33,8 @@
    uchar client_send_command_request();
 
 	// Anda no tabuleiro
-   void client_walk();
+		// Marca a casa atual como X se tinha um tesouro, se nao marca com um espaco
+   void client_walk(bool *treasure);
 
 
 	// Recebe o tesouro do servidor na seginte ordem:
@@ -43,7 +44,7 @@
 	// Retorna 
 		// path, caso consiga baixar o arquivo
 		// NULL, caso contrario
-	char* client_recieve_treasure(uchar type);
+	char* client_receive_treasure(uchar type);
 
 	// Abre o tesouro com base em:
 		//type : tipo do tesouro

@@ -15,7 +15,7 @@ int main() {
 	while(treasures_remaining > 0){
 
 		// Recebe um comando do cliente
-		command = server_recieve_command();
+		command = server_receive_command();
 
 		// Realiza o comando do cliente
 		// Retorna o path do tesouro (se encontrado)
