@@ -260,12 +260,9 @@ void client_open_treasure(uchar type, char *path){
 
 	switch (type){
 		case VIDEO:
-			snprintf(command, sizeof(command), "xdg-open \"%s\"", path);
-			break;
 		case TEXTO:
-			snprintf(command, sizeof(command), "xdg-open \"%s\"", path);
-			break;
 		case IMAGEM:
+			snprintf(command, sizeof(command), "xdg-open \"%s\"", path);
 			break;
 		default:
 			perror("Erro tipo de tesouro");

@@ -303,9 +303,9 @@ void protocol_receive_passive(package_t *package){
 			printf("Recebido seq: %u : esperado: %u, Tipo: %u\n",package->seq, g_expected_seq, package->type);
 		#endif
 
-      	if(package->seq < g_expected_seq){   	  // Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
+		if((package->seq < g_expected_seq) || (g_expected_seq == 0 && package->seq == 31)){  	// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
 			local_resend_package();
-      	continue;
+      		continue;
 		}else if (package->seq > g_expected_seq){ 
 			// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
 			g_error.data[0] = ERRO_SEQ;
@@ -398,7 +398,7 @@ void protocol_receive_active(package_t *package){
 					printf("Recebido seq: %u : esperado: %u, Tipo: %u\n",package->seq, g_expected_seq, package->type);
 				#endif
 
-				if(package->seq < g_expected_seq){  		// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
+				if((package->seq < g_expected_seq) || (g_expected_seq == 0 && package->seq == 31)){  	// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
 					local_resend_package();
 					continue;
 				} else if (package->seq > g_expected_seq){
