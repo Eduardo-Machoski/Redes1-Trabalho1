@@ -32,16 +32,20 @@ void local_resend_package(){
 }
 
 // retorna a soma dos bytes dos campos de sequencia, tipo, tamanho e dados
-uchar local_checksum(package_t package){
-	uchar sum = 0;
-	sum += package.buffer[1] + package.buffer[2];
-	for (int i=4; i<package.size; i++) sum += package.buffer[i];
+char local_checksum(package_t package){
+	char sum = 0;
+	sum += (char) package.buffer[1] + (char) package.buffer[2];
+	for (int i=4; i<package.size; i++) sum += (char) package.buffer[i];
 
 	return sum;
 }
 
 // Envia nack
 void local_send_nack(){
+	#ifdef DEBUG
+		printf("NACK sent\n");
+	#endif
+
 	uchar buffer_size = 4 + g_nack.size;
 
 	g_nack.seq = g_current_seq;
@@ -144,13 +148,13 @@ void protocol_init(char* interface_name) {
 
 // retorna a soma dos bytes dos campos de sequencia, tipo, tamanho e dados
 // Realiza o complemento de 2 no valor obtido
-uchar local_build_checksum(package_t package){
-	uchar sum = 0;
-	sum += package.buffer[1] + package.buffer[2];
-	for (int i=4; i<package.size; i++) sum += package.buffer[i];
+char local_build_checksum(package_t package){
+	char sum = 0;
+	sum += (char) package.buffer[1] + (char) package.buffer[2];
+	for (int i=4; i<package.size; i++) sum += (char) package.buffer[i];
 
 	// Inverte o resultado obtido
-	sum = sum ^ 0x11111111;
+	sum = ~sum;
 
 	// Adiciona 1  (complemento de dois)
 	sum += 1;
@@ -164,7 +168,7 @@ void local_build_package(package_t *package){
 	package->buffer[1] = (package->size << 1) | (package->seq >> 4);	
 	package->buffer[2] = (package->seq << 4) | package->type;
 	memcpy(&(package->buffer[4]), package->data, package->size);			// copia os dados para o final do buffer
-	package->buffer[3] = local_build_checksum(*package);
+	package->buffer[3] = (uchar) local_build_checksum(*package);
 }
 
 // retorna 1 com sucesso
@@ -283,7 +287,12 @@ void protocol_recieve_passive(package_t *package){
 		while (!local_recieve_package(package));
 
 		// Verifica o checksum do pacote
-		if (package->buffer[3] + local_checksum(*package) != 0){
+		if ((char)((char) package->buffer[3] + (char) local_checksum(*package)) != 0){
+			#ifdef DEBUG
+				printf("checksum: %d %d\n", (char) package->buffer[3], (char) local_checksum(*package));
+				printf("checksum: %b %b\n", package->buffer[3], local_checksum(*package));
+			#endif
+
 			// Erro checksum -> Envia nack e volta a esperar a mensagem
 			local_send_nack();
 			continue;
@@ -330,12 +339,12 @@ void protocol_recieve_passive(package_t *package){
 
 			case ERRO:
 				// Mensagem de erro mata o programa e finaliza com o tipo do erro
-				exit(package->data[0]);
+				exit(package->buffer[4]);
 				break;
 
 			default:
 				//	Tipo de mensagem invalido, envia mensagem de erro e finaliza o programa
-            g_error.data[0] = ERRO_TIPO;
+            	g_error.data[0] = ERRO_TIPO;
 				local_build_package(&g_error);
 				protocol_send_package(&g_error, true);
 				exit(ERRO_TIPO);
@@ -367,14 +376,18 @@ void protocol_recieve_active(package_t *package){
 		beggining = timestamp();
 		timeout.tv_sec = timeoutMillis/1000;
 		timeout.tv_usec = (timeoutMillis%1000) * 1000;
-   	setsockopt(g_socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
+   		setsockopt(g_socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
 
 		do
 			if(local_recieve_package(package)){	
 				timeoutMillis = 1000;			// volta o tempo de timeout original
 
 				// Verifica o checksum do pacote
-				if (package->buffer[3] + local_checksum(*package) != 0){
+				if ((char)((char) package->buffer[3] + (char) local_checksum(*package)) != 0){
+					#ifdef DEBUG
+						printf("checksum: %d %d\n", (char) package->buffer[3], (char) local_checksum(*package));
+						printf("checksum: %b %b\n", package->buffer[3], local_checksum(*package));
+					#endif
 					// Erro checksum -> Envia nack e volta a esperar a mensagem
 					local_send_nack();
 					continue;
@@ -419,7 +432,7 @@ void protocol_recieve_active(package_t *package){
 
 					case ERRO:
 						// Finaliza o programa com o tipo do erro recebido
-						exit(package->data[0]);
+						exit(package->buffer[4]);
 					break;
 
 					default:
