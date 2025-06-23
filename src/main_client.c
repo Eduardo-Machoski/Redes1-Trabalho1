@@ -45,7 +45,7 @@ int main(){
 
 				// Abre o tesouro conforme o seu tipo
 				// Cliente recebe o tesouro do servidor
-				path = client_recieve_treasure(command_response);
+				path = client_receive_treasure(command_response);
 
 				treasures_left--;
 				if (path){
@@ -67,6 +67,8 @@ int main(){
 
 		}
 	}
+
+	printf("FIM DE JOGO\n");
 
 	return 0;
 }

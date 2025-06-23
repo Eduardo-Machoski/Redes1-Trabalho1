@@ -24,7 +24,7 @@ void server_init();
 // Ao receber uma mensagem valida verifica:
 //    - Sequencia
 //    - Checksum
-uchar server_recieve_command();
+uchar server_receive_command();
 
 // Recebe um commando e tenta andar no board
 // Situacoes:

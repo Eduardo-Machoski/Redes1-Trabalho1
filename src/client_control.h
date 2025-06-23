@@ -44,7 +44,7 @@
 	// Retorna 
 		// path, caso consiga baixar o arquivo
 		// NULL, caso contrario
-	char* client_recieve_treasure(uchar type);
+	char* client_receive_treasure(uchar type);
 
 	// Abre o tesouro com base em:
 		//type : tipo do tesouro

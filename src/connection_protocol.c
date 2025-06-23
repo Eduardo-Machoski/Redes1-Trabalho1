@@ -138,7 +138,7 @@ void protocol_init(char* interface_name) {
 
 	// Inicializa o pacote de ERRO
 	g_error.size = 1;
-	g_nack.type = ERRO;
+	g_nack.type = ERRO_CONEXAO;
 	g_nack.seq = 0;
 }
 
@@ -250,7 +250,7 @@ void local_deconstruct_package(package_t *package){
 
 // retorna 1 caso receba uma mensagem com marcador de inicio
 // retorna 0 caso contrario
-int local_recieve_package(package_t *package){ 
+int local_receive_package(package_t *package){ 
 	uchar aux[262];
 
 	// recebe pacote em aux
@@ -272,25 +272,24 @@ int local_recieve_package(package_t *package){
 	return 1;
 }
 
-// função de recieve sem timeout
-// essa função serve para recieves passivos, que não são para respostas de sends
+// função de receive sem timeout
+// essa função serve para receives passivos, que não são para respostas de sends
 // Verifica:
 	// Checksum
 	// Sequencia da mensagem
-void protocol_recieve_passive(package_t *package){
+void protocol_receive_passive(package_t *package){
 
 	bool valid = false;
 
 	//Repete ate receber uma resposta valida e com sequencia correta
 	while(!valid){
 		// Recebe um pacote com mensagem de inicio
-		while (!local_recieve_package(package));
+		while (!local_receive_package(package));
 
 		// Verifica o checksum do pacote
 		if ((char)((char) package->buffer[3] + (char) local_checksum(*package)) != 0){
 			#ifdef DEBUG
 				printf("checksum: %d %d\n", (char) package->buffer[3], (char) local_checksum(*package));
-				printf("checksum: %b %b\n", package->buffer[3], local_checksum(*package));
 			#endif
 
 			// Erro checksum -> Envia nack e volta a esperar a mensagem
@@ -328,6 +327,7 @@ void protocol_recieve_passive(package_t *package){
 			case DIREITA:
 			case CIMA:
 			case BAIXO:
+			case ERRO:
 			case ESQUERDA:
 				break;
 
@@ -337,7 +337,7 @@ void protocol_recieve_passive(package_t *package){
 					continue;
 					break;
 
-			case ERRO:
+			case ERRO_CONEXAO:
 				// Mensagem de erro mata o programa e finaliza com o tipo do erro
 				exit(package->buffer[4]);
 				break;
@@ -358,13 +358,13 @@ void protocol_recieve_passive(package_t *package){
 	}
 }
 
-// função de recieve com timeout
-// essa função serve para recieves ativos, que são de respostas de sends
+// função de receive com timeout
+// essa função serve para receives ativos, que são de respostas de sends
 // Verifica:
 	// Checksum
 	// Sequencia
 // Contem timeout
-void protocol_recieve_active(package_t *package){
+void protocol_receive_active(package_t *package){
 
 	bool valid = false;
 
@@ -379,14 +379,13 @@ void protocol_recieve_active(package_t *package){
    		setsockopt(g_socket, SOL_SOCKET, SO_RCVTIMEO, (char*) &timeout, sizeof(timeout));
 
 		do
-			if(local_recieve_package(package)){	
+			if(local_receive_package(package)){	
 				timeoutMillis = 1000;			// volta o tempo de timeout original
 
 				// Verifica o checksum do pacote
 				if ((char)((char) package->buffer[3] + (char) local_checksum(*package)) != 0){
 					#ifdef DEBUG
 						printf("checksum: %d %d\n", (char) package->buffer[3], (char) local_checksum(*package));
-						printf("checksum: %b %b\n", package->buffer[3], local_checksum(*package));
 					#endif
 					// Erro checksum -> Envia nack e volta a esperar a mensagem
 					local_send_nack();
@@ -431,7 +430,7 @@ void protocol_recieve_active(package_t *package){
 						local_inc_seq(&g_expected_seq);
 					break;
 
-					case ERRO:
+					case ERRO_CONEXAO:
 						// Finaliza o programa com o tipo do erro recebido
 						exit(package->buffer[4]);
 					break;

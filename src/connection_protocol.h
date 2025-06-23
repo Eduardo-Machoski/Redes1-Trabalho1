@@ -16,6 +16,7 @@
 	#define CIMA			11
 	#define BAIXO			12
 	#define ESQUERDA		13
+	#define ERRO_CONEXAO	14
 	#define ERRO			15
 
 	//================================CODIGOS DE ERRO=========================================
@@ -49,8 +50,8 @@
 
 	int protocol_send_package(package_t *package, bool inc);
 
-	void protocol_recieve_passive(package_t *package);
+	void protocol_receive_passive(package_t *package);
 	
-	void protocol_recieve_active(package_t *package);
+	void protocol_receive_active(package_t *package);
 
 #endif

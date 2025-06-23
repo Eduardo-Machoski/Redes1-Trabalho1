@@ -16,7 +16,7 @@ board g_board;					// Estado atual do tabuleiro
 char *Treasure_path;			// Path para o ultimo tesouro recebido
 
 package_t send_package; 		// Pacote de envio 
-package_t recieved_package;		// Pacote de recebimento
+package_t received_package;		// Pacote de recebimento
 
 
 
@@ -116,9 +116,9 @@ uchar client_send_command_request(){
 	protocol_send_package(&send_package, true);
 
 	// Recebe a resposta do servidor
-	protocol_recieve_active(&recieved_package);
+	protocol_receive_active(&received_package);
 
-	return recieved_package.type;
+	return received_package.type;
 }
 
 //======================================================================
@@ -161,15 +161,15 @@ void client_walk(bool *treasure){
 
 // Retorna o caminho para o tesouro caso tenha sido baixado corretamente
 // Retorna NULL caso contrario
-char *client_recieve_treasure(uchar type){
+char *client_receive_treasure(uchar type){
 	// Copia o caminho do arquivo para path
-	char *path = malloc(recieved_package.size + 1);
+	char *path = malloc(received_package.size + 1);
 	if (!path) {
 		perror("malloc");
 		return NULL;
 	}
-	memcpy(path, recieved_package.data, recieved_package.size);
-	path[recieved_package.size] = '\0';
+	memcpy(path, received_package.data, received_package.size);
+	path[received_package.size] = '\0';
 
 	struct statvfs st;
 
@@ -187,17 +187,17 @@ char *client_recieve_treasure(uchar type){
 	protocol_send_package(&send_package, true);
 	
 	// Espera TAMANHO
-	protocol_recieve_passive(&recieved_package);
-	while(recieved_package.type != TAMANHO){
+	protocol_receive_passive(&received_package);
+	while(received_package.type != TAMANHO){
 		protocol_send_package(&send_package, false);
-		protocol_recieve_passive(&recieved_package);
+		protocol_receive_passive(&received_package);
 	}
 
 	// Guarda tamanho
 	uint64_t size = 0;
 
     for (int i = 0; i < 8; i++) {
-        size |= ((uint64_t)recieved_package.data[i]) << (56 - i * 8);
+        size |= ((uint64_t)received_package.data[i]) << (56 - i * 8);
     }
 
 	#ifdef DEBUG
@@ -230,14 +230,14 @@ char *client_recieve_treasure(uchar type){
 	printf("BAIXANDO ARQUIVO\n");
 
 	// Espera DADOS
-	protocol_recieve_passive(&recieved_package);
-	while(recieved_package.type != FIM_FILE){
+	protocol_receive_passive(&received_package);
+	while(received_package.type != FIM_FILE){
 		// Escreve no arquivo
-		for (size_t i=0; i<recieved_package.size; i++)
-			fputc(recieved_package.data[i], file);
+		for (size_t i=0; i<received_package.size; i++)
+			fputc(received_package.data[i], file);
 
 		protocol_send_package(&send_package, true);
-		protocol_recieve_passive(&recieved_package);
+		protocol_receive_passive(&received_package);
 	}
 	
 	printf("ARQUIVO BAIXADO\n");
