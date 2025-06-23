@@ -304,7 +304,7 @@ void protocol_recieve_passive(package_t *package){
 			printf("Recebido seq: %u : esperado: %u, Tipo: %u\n",package->seq, g_expected_seq, package->type);
 		#endif
 
-      if(package->seq < g_expected_seq){   	  // Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
+      	if(package->seq < g_expected_seq){   	  // Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
 			local_resend_package();
       	continue;
 		}else if (package->seq > g_expected_seq){ 
@@ -348,13 +348,13 @@ void protocol_recieve_passive(package_t *package){
 				local_build_package(&g_error);
 				protocol_send_package(&g_error, true);
 				exit(ERRO_TIPO);
-
 		}
 
 		// Obteve mensagem valida
 		valid = true;
-      // Atualiza a sequencia de mensagem esperada
-      local_inc_seq(&g_expected_seq);
+      
+	  	// Atualiza a sequencia de mensagem esperada
+      	local_inc_seq(&g_expected_seq);
 	}
 }
 
@@ -424,6 +424,7 @@ void protocol_recieve_active(package_t *package){
 					case VIDEO:
 					case IMAGEM:
 					case TEXTO:
+					case ERRO:
 						valid = true;
 
 						// Atualiza a sequencia de mensagem esperada

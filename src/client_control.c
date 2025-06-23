@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <stdint.h>
+#include <sys/statvfs.h>
+#include <unistd.h>
+#include <string.h>
 
 //=====================VARIAVEIS GLOBAIS================================
 
@@ -11,8 +15,8 @@ board g_board;					// Estado atual do tabuleiro
 
 char *Treasure_path;			// Path para o ultimo tesouro recebido
 
-package_t command_request; // Pacote com o comando enviado
-package_t answer_package;	// Ultima resposta do servidor
+package_t send_package; 		// Pacote de envio 
+package_t recieved_package;		// Pacote de recebimento
 
 
 
@@ -38,7 +42,7 @@ void client_init_game(){
 	g_board.player_x = 0;
 	g_board.player_y = 0;
 
-	command_request.size = 0;
+	send_package.size = 0;
 
 	// Configura a conexao com o servidor
 	 protocol_init(PATH_INTERFACE);
@@ -64,7 +68,7 @@ void client_print_board(){
 	// - 'S', 's'
 	// - 'D', 'd'
 	// - 'W', 'w'
-// Monta o command_request com base no comando
+// Monta o send_package com base no comando
 void client_get_valid_command(){
 	uchar c = '\0';
 
@@ -75,16 +79,16 @@ void client_get_valid_command(){
 
    switch (c){
       case 'A':
-			command_request.type = ESQUERDA;
+			send_package.type = ESQUERDA;
          break;
       case 'S':
-			command_request.type = BAIXO;
+			send_package.type = BAIXO;
          break;
       case 'D':
-			command_request.type = DIREITA;
+			send_package.type = DIREITA;
          break;
       case 'W':
-			command_request.type = CIMA;
+			send_package.type = CIMA;
          break;
       default:
 			perror("Erro tipo comando!");
@@ -99,7 +103,7 @@ void client_get_valid_command(){
 
 //======================================================================
 
-// Envia o command_request ao servidor
+// Envia o send_package ao servidor
 // Recebe a resposta do servidor
 // Caso encontre um tesouro recebe o tesouro e salva seu path em Treasure_path
 // Respostas:
@@ -109,12 +113,12 @@ void client_get_valid_command(){
 uchar client_send_command_request(){
 
 	// Envia o command_request
-	protocol_send_package(&command_request, true);
+	protocol_send_package(&send_package, true);
 
 	// Recebe a resposta do servidor
-	protocol_recieve_active(&answer_package);
+	protocol_recieve_active(&recieved_package);
 
-	return answer_package.type;
+	return recieved_package.type;
 }
 
 //======================================================================
@@ -131,7 +135,7 @@ void client_walk(bool *treasure){
 		g_board.board[g_board.player_y][g_board.player_x] = ' ';
 
 	// Move o player com base no ultimo comando enviado ao servidor
-   switch (command_request.type){
+   switch (send_package.type){
       case CIMA:
          g_board.player_y += 1;
          break;
@@ -154,7 +158,93 @@ void client_walk(bool *treasure){
 	// TAMANHO - Verifica se ha espaco em disco suficiente
 	// DADOS - Repete recepcao de dados
 	// FIM_FILE - Fim da recepcao de dados e do tesouro
-void client_recieve_treasure(uchar type){
+
+// Retorna o caminho para o tesouro caso tenha sido baixado corretamente
+// Retorna NULL caso contrario
+char *client_recieve_treasure(uchar type){
+	// Copia o caminho do arquivo para path
+	char *path = malloc(recieved_package.size + 1);
+	if (!path) {
+		perror("malloc");
+		return NULL;
+	}
+	memcpy(path, recieved_package.data, recieved_package.size);
+	path[recieved_package.size] = '\0';
+
+	struct statvfs st;
+
+	printf("TESOURO ENCONTRADO\n");
+
+	#ifdef DEBUG
+		printf("path: %s\n", path);
+	#endif
+
+	// Fala que entrou na função de receber arquivo
+	send_package.type = ACK;
+	send_package.size = 0;
+
+	// Manda ACK
+	protocol_send_package(&send_package, true);
+	
+	// Espera TAMANHO
+	protocol_recieve_passive(&recieved_package);
+	while(recieved_package.type != TAMANHO){
+		protocol_send_package(&send_package, false);
+		protocol_recieve_passive(&recieved_package);
+	}
+
+	// Guarda tamanho
+	uint64_t size = 0;
+
+    for (int i = 0; i < 8; i++) {
+        size |= ((uint64_t)recieved_package.data[i]) << (56 - i * 8);
+    }
+
+	#ifdef DEBUG
+		printf("tamanho do arquivo: %lu\n", size);
+	#endif
+
+	// Verifica espaço no diretorio objetos
+	statvfs("objetos", &st);
+	send_package.type = ACK;
+	send_package.size = 0;
+	if ((uint64_t)st.f_bsize * st.f_bavail < size + 100 * 1024 * 1024){		// Tolerancia de 100MB
+		send_package.type = ERRO;
+		printf("ESPAÇO INSUFICIENTE EM DISCO\n");
+	}
+	// Verifica se tem permissão de escrita no diretorio objetos
+	if (access("objetos", W_OK) != 0){
+		send_package.type = ERRO;
+		printf("SEM PERMISSÃO DE ESCRITA NO DIRETORIO\n");
+	}
+	protocol_send_package(&send_package, true);
+
+	// Caso ERRO, encerra função
+	if (send_package.type == ERRO){
+		free(path);
+		return NULL;
+	}
+
+	FILE *file = fopen(path, "wb");
+
+	printf("BAIXANDO ARQUIVO\n");
+
+	// Espera DADOS
+	protocol_recieve_passive(&recieved_package);
+	while(recieved_package.type != FIM_FILE){
+		// Escreve no arquivo
+		for (size_t i=0; i<recieved_package.size; i++)
+			fputc(recieved_package.data[i], file);
+
+		protocol_send_package(&send_package, true);
+		protocol_recieve_passive(&recieved_package);
+	}
+	
+	printf("ARQUIVO BAIXADO\n");
+	
+	fclose(file);
+
+	return path;
 }
 
 //======================================================================
@@ -162,11 +252,18 @@ void client_recieve_treasure(uchar type){
 // Abre o tesouro com base em:
 	//type : tipo do tesouro
 	//Treasure_path : caminho para o tesouro recebido por ultimo
-void client_open_treasure(uchar type){
+void client_open_treasure(uchar type, char *path){
+	// não existe arquivo
+	if (!path) return;
+
+	char command[256];
+
 	switch (type){
 		case VIDEO:
+			snprintf(command, sizeof(command), "xdg-open \"%s\"", path);
 			break;
 		case TEXTO:
+			snprintf(command, sizeof(command), "xdg-open \"%s\"", path);
 			break;
 		case IMAGEM:
 			break;
@@ -175,4 +272,6 @@ void client_open_treasure(uchar type){
 			exit(1);
 			break;
 	}
+
+	system(command);
 }

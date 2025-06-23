@@ -3,20 +3,20 @@
 	#include <stdbool.h>
 	
 	//===============================TIPOS DE MENSAGEM========================================
-	#define ACK 		0
-	#define NACK		1
-	#define OK			2
-	#define TAMANHO	4
-	#define DADOS		5
-	#define TEXTO		6
-	#define VIDEO		7
-	#define IMAGEM		8
-	#define FIM_FILE	9
-	#define DIREITA	10
-	#define CIMA		11
-	#define BAIXO		12
-	#define ESQUERDA	13
-	#define ERRO		15
+	#define ACK 			0
+	#define NACK			1
+	#define OK				2
+	#define TAMANHO			4
+	#define DADOS			5
+	#define TEXTO			6
+	#define VIDEO			7
+	#define IMAGEM			8
+	#define FIM_FILE		9
+	#define DIREITA			10
+	#define CIMA			11
+	#define BAIXO			12
+	#define ESQUERDA		13
+	#define ERRO			15
 
 	//================================CODIGOS DE ERRO=========================================
 
@@ -29,8 +29,8 @@
 	//=====================================DEMAIS=============================================
 
 	typedef unsigned char uchar;
-	#define INIT_SEQUENCE  0b01111110
-	#define PATH_INTERFACE "enp43s0"
+	#define INIT_SEQUENCE  	0b01111110
+	#define PATH_INTERFACE 	"enp43s0"
 
 	//================================STRUCT DE PACOTE========================================
 
@@ -52,11 +52,5 @@
 	void protocol_recieve_passive(package_t *package);
 	
 	void protocol_recieve_active(package_t *package);
-
-	//==============================FUNÇÕES DE ARQUIVOS======================================
-
-	int protocol_recieve_archive(int socket, char *archive_name);
-
-	int protocol_send_archive(int socket, char *archive_path);
 
 #endif

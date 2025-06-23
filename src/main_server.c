@@ -27,7 +27,6 @@ int main() {
 		if(treasure_path)
 			treasures_remaining--;
 
-
 		// Envia o pacote de resposta ao cliente
 		server_send_answer(treasure_path);
 	}
