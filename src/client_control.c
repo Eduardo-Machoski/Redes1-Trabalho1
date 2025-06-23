@@ -124,10 +124,15 @@ uchar client_send_command_request(){
 //======================================================================
 
 // Anda no tabuleiro
-void client_walk(){
+void client_walk(bool *treasure){
 	
-	// marca a casa atual do player como ja visitada
-   g_board.board[g_board.player_y][g_board.player_x] = ' ';
+	if(*treasure){
+		// marca a casa atual do player como antigo tesouro
+		g_board.board[g_board.player_y][g_board.player_x] = 'X';
+		*treasure = false;
+	}else
+		// marca a casa atual do player como vazia
+		g_board.board[g_board.player_y][g_board.player_x] = ' ';
 
 	// Move o player com base no ultimo comando enviado ao servidor
    switch (send_package.type){

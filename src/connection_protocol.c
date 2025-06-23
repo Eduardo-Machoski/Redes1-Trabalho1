@@ -12,13 +12,14 @@
 #include "connection_protocol.h"
  
 
-uchar g_expected_seq;     // Sequencia esperada da proxima mensagem a receber
-uchar g_current_seq;      // Sequencia do pacote atual
+uchar g_expected_seq;      // Sequencia esperada da proxima mensagem a receber
+uchar g_current_seq;       // Sequencia do pacote atual
 
-int g_socket;				  // Variavel com o socket de comunicacao
+int g_socket;				   // Variavel com o socket de comunicacao
 
-package_t g_nack;         // Pacote nack
-package_t g_last_package; // Ultimo pacote enviado por esse computador (atualizado todo envio)
+package_t g_nack;          // Pacote nack
+package_t g_error;			// Pacote de erro
+package_t g_last_package;  // Ultimo pacote enviado por esse computador (atualizado todo envio)
 
 void local_build_package(package_t *package);
 
@@ -30,8 +31,21 @@ void local_resend_package(){
 	send(g_socket, g_last_package.buffer, g_last_package.buffer_size, 0);
 }
 
+// retorna a soma dos bytes dos campos de sequencia, tipo, tamanho e dados
+char local_checksum(package_t package){
+	char sum = 0;
+	sum += (char) package.buffer[1] + (char) package.buffer[2];
+	for (int i=4; i<package.size; i++) sum += (char) package.buffer[i];
+
+	return sum;
+}
+
 // Envia nack
 void local_send_nack(){
+	#ifdef DEBUG
+		printf("NACK sent\n");
+	#endif
+
 	uchar buffer_size = 4 + g_nack.size;
 
 	g_nack.seq = g_current_seq;
@@ -121,6 +135,11 @@ void protocol_init(char* interface_name) {
 	g_nack.size = 0;
 	g_nack.type = NACK;
 	g_nack.seq = 0;
+
+	// Inicializa o pacote de ERRO
+	g_error.size = 1;
+	g_nack.type = ERRO;
+	g_nack.seq = 0;
 }
 
 //
@@ -128,10 +147,17 @@ void protocol_init(char* interface_name) {
 //
 
 // retorna a soma dos bytes dos campos de sequencia, tipo, tamanho e dados
-uchar local_checksum(package_t package){
-	uchar sum = 0;
-	sum += package.buffer[1] + package.buffer[2];
-	for (int i=4; i<package.size; i++) sum += package.buffer[i];
+// Realiza o complemento de 2 no valor obtido
+char local_build_checksum(package_t package){
+	char sum = 0;
+	sum += (char) package.buffer[1] + (char) package.buffer[2];
+	for (int i=4; i<package.size; i++) sum += (char) package.buffer[i];
+
+	// Inverte o resultado obtido
+	sum = ~sum;
+
+	// Adiciona 1  (complemento de dois)
+	sum += 1;
 
 	return sum;
 }
@@ -142,7 +168,7 @@ void local_build_package(package_t *package){
 	package->buffer[1] = (package->size << 1) | (package->seq >> 4);	
 	package->buffer[2] = (package->seq << 4) | package->type;
 	memcpy(&(package->buffer[4]), package->data, package->size);			// copia os dados para o final do buffer
-	package->buffer[3] = local_checksum(*package);
+	package->buffer[3] = (uchar) local_build_checksum(*package);
 }
 
 // retorna 1 com sucesso
@@ -261,7 +287,12 @@ void protocol_recieve_passive(package_t *package){
 		while (!local_recieve_package(package));
 
 		// Verifica o checksum do pacote
-		if (package->buffer[3] != local_checksum(*package)){
+		if ((char)((char) package->buffer[3] + (char) local_checksum(*package)) != 0){
+			#ifdef DEBUG
+				printf("checksum: %d %d\n", (char) package->buffer[3], (char) local_checksum(*package));
+				printf("checksum: %b %b\n", package->buffer[3], local_checksum(*package));
+			#endif
+
 			// Erro checksum -> Envia nack e volta a esperar a mensagem
 			local_send_nack();
 			continue;
@@ -275,14 +306,48 @@ void protocol_recieve_passive(package_t *package){
 
       	if(package->seq < g_expected_seq){   	  // Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
 			local_resend_package();
-      		continue;
-		}else if (package->seq > g_expected_seq) // Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
-         	printf("Tem que fazer");
+      	continue;
+		}else if (package->seq > g_expected_seq){ 
+			// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
+			g_error.data[0] = ERRO_SEQ;
+			local_build_package(&g_error);
+			protocol_send_package(&g_error, true);
+			exit(ERRO_SEQ);
+		}
 
-		// Se recebeu um nack envia a ultima mensagem novamente e continua no loop
-		if(package->type == NACK){
-			local_resend_package();
-			continue;
+
+		switch(package->type){
+			case ACK:
+			case OK:
+			case TAMANHO:
+			case DADOS:
+			case TEXTO:
+			case VIDEO:
+			case IMAGEM:
+			case FIM_FILE:
+			case DIREITA:
+			case CIMA:
+			case BAIXO:
+			case ESQUERDA:
+				break;
+
+			case NACK:
+				// Se recebeu um nack envia a ultima mensagem novamente e continua no loop
+					local_resend_package();
+					continue;
+					break;
+
+			case ERRO:
+				// Mensagem de erro mata o programa e finaliza com o tipo do erro
+				exit(package->buffer[4]);
+				break;
+
+			default:
+				//	Tipo de mensagem invalido, envia mensagem de erro e finaliza o programa
+            	g_error.data[0] = ERRO_TIPO;
+				local_build_package(&g_error);
+				protocol_send_package(&g_error, true);
+				exit(ERRO_TIPO);
 		}
 
 		// Obteve mensagem valida
@@ -318,7 +383,11 @@ void protocol_recieve_active(package_t *package){
 				timeoutMillis = 1000;			// volta o tempo de timeout original
 
 				// Verifica o checksum do pacote
-				if (package->buffer[3] != local_checksum(*package)){
+				if ((char)((char) package->buffer[3] + (char) local_checksum(*package)) != 0){
+					#ifdef DEBUG
+						printf("checksum: %d %d\n", (char) package->buffer[3], (char) local_checksum(*package));
+						printf("checksum: %b %b\n", package->buffer[3], local_checksum(*package));
+					#endif
 					// Erro checksum -> Envia nack e volta a esperar a mensagem
 					local_send_nack();
 					continue;
@@ -333,8 +402,13 @@ void protocol_recieve_active(package_t *package){
 				if(package->seq < g_expected_seq){  		// Sequencia menor que esperado -> Envia a ultima mensagem enviada novamente
 					local_resend_package();
 					continue;
-				} else if (package->seq > g_expected_seq)	// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
-					printf("Tem que fazer");
+				} else if (package->seq > g_expected_seq){
+					// Sequencia maior que esperado -> Envia mensagem de erro sequencia -> Encerra o programa
+					g_error.data[0] = ERRO_SEQ;
+					local_build_package(&g_error);
+					protocol_send_package(&g_error, true);
+					exit(ERRO_SEQ);
+				}
 
 
 				switch (package->type){
@@ -357,9 +431,17 @@ void protocol_recieve_active(package_t *package){
 						local_inc_seq(&g_expected_seq);
 					break;
 
+					case ERRO:
+						// Finaliza o programa com o tipo do erro recebido
+						exit(package->buffer[4]);
+					break;
 
 					default:
-						// Fazer envio de erro
+						//	Tipo de mensagem invalido, envia mensagem de erro e finaliza o programa
+						g_error.data[0] = ERRO_TIPO;
+						local_build_package(&g_error);
+						protocol_send_package(&g_error, true);
+						exit(ERRO_TIPO);
 				}
 
 

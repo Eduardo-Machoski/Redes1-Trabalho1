@@ -9,11 +9,55 @@
 
 board g_board;								// Estado atual do tabuleiro
 
-package_t send_package;						// Pacote a ser enviado 
+package_t send_package;					// Pacote a ser enviado 
 
-package_t recieved_package;					// Ultimo pacote recebido
+package_t recieved_package;			// Ultimo pacote recebido
 
-treasure_t treasures[TREASURES];    		// Vetor com os tesouros e suas informacoes
+treasure_t treasures[TREASURES];    // Vetor com os tesouros e suas informacoes
+
+uchar plays[1024];						// Vetor com a sequencia de jogadas do player
+int num_plays;								//	Numero de jogadas que o player realizou
+
+//===========================FUNCOES INTERNAS===================================
+
+// Salva uma jogada do player na ultima posicao
+void local_save_play(uchar type){
+	plays[num_plays] = type;
+	num_plays++;
+}
+
+// Imprime todas as jogadas do player em sequencia
+void local_print_play_sequence(){
+	for(int i = 0; i < num_plays ; i++){
+		switch (plays[i]){
+			case ESQUERDA:
+				printf("a");
+				break;
+				
+			case DIREITA:
+				printf("d");
+				break;
+				
+			case CIMA:
+				printf("w");
+				break;
+				
+			case BAIXO:
+				printf("s");
+				break;
+				
+			default:
+				break;
+		}
+
+		if(i == num_plays - 1)
+			printf("\n");
+		else
+			printf(" ");
+	}
+}
+
+void local_build_send_package(uchar type, char *path){
 
 char *extensions[3] = {"jpg", "mp4", "txt"};// Vetor com toda as extensões possiveis
 
@@ -56,6 +100,13 @@ void local_build_send_package(uchar type, char *data){
 
 			// Tem que fazer o sistema de arquivos e dai atualizar aqui
 			send_package.data[0] = '1';
+			send_package.size = 1;
+		break;
+
+		case ERRO:
+			send_package.type = type;
+
+			send_package.data[0] = ERRO_TIPO;
 			send_package.size = 1;
 		break;
 
@@ -151,6 +202,9 @@ void server_init(){
 	g_board.player_x = 0;
 	g_board.player_y = 0;
 
+	// Numero de jogadas inicial do player
+	num_plays = 0;
+
 	// Inicializa os tesouros
 	for(int i = 0; i < TREASURES; i++){
 		local_init_treasure(i);
@@ -161,7 +215,6 @@ void server_init(){
 	
 	// Configura o socket de comunicacao
 	protocol_init(PATH_INTERFACE);
-
 }
 
 // Espera passivamente por um pacoteenviado do cliente
@@ -169,6 +222,23 @@ void server_init(){
 	// Tipo do pacote recebido
 uchar server_recieve_command(){
 	protocol_recieve_passive(&recieved_package);
+
+	switch (recieved_package.type){
+		// Valores validos
+		case ESQUERDA:
+		case DIREITA:
+		case CIMA:
+		case BAIXO:
+			local_save_play(recieved_package.type);
+			local_print_play_sequence();
+			break;
+
+		// Tipo invalido
+		default:
+			local_build_send_package(ERRO, NULL);
+			exit(ERRO_TIPO);
+			break;
+	}
 
 	return recieved_package.type;
 }

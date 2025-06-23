@@ -1,6 +1,7 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wextra -DDEBUG
+CFLAGS = -Wextra
+DEBUG = -DDEBUG
 
 # Directories
 SRC_DIR = src
@@ -20,6 +21,10 @@ all: client server
 
 # purges and then remakes everything
 remake: purge all
+
+# Debug build
+debug: CFLAGS += $(DEBUG)
+debug: remake
 
 client: $(CLIENT_OBJS)
 	$(CC) $(CFLAGS) -o $(BIN_DIR)/client $(CLIENT_OBJS)
@@ -45,7 +50,7 @@ clean-server:
 	rm -f $(SERVER_OBJS)
 
 purge: purge-client purge-server
-	rmdir $(BIN_DIR)/tmp
+	rm -rf $(BIN_DIR)/tmp
 
 purge-client: clean-client
 	rm -f $(BIN_DIR)/client

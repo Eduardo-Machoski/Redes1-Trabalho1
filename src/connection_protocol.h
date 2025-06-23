@@ -21,7 +21,9 @@
 	//================================CODIGOS DE ERRO=========================================
 
 	#define NO_PERMISSION 	0
-	#define NO_SPACE		1
+	#define NO_SPACE			1
+	#define ERRO_SEQ			2
+	#define ERRO_TIPO			3
 
 
 	//=====================================DEMAIS=============================================
