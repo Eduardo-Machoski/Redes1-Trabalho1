@@ -75,6 +75,8 @@ void local_send_nack(){
 	}
 
 	send(g_socket, aux, buffer_size, 0);
+
+	free(aux);
 }
 
 

@@ -353,6 +353,7 @@ void local_send_file(char *path){
 
 	// Caso receba erro
 	if (received_package.type == ERRO){
+		fclose(file);
 		return;
 	}
 
@@ -369,6 +370,8 @@ void local_send_file(char *path){
 	send_package.size = 0;
 	send_package.type = FIM_FILE;
 	protocol_send_package(&send_package, true);
+
+	fclose(file);
 }
 
 // Envia resposta ao cliente
